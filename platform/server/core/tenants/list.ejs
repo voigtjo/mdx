@@ -1,0 +1,12 @@
+<%- include("../ui/layout.ejs", {
+  user: user,
+  body: `
+    <div class="bg-white p-8 rounded-xl shadow-md">
+      <h1 class="text-3xl font-bold mb-4">Tenants</h1>
+
+      <pre class="bg-gray-100 p-4 rounded text-sm">
+${JSON.stringify(tenants || [], null, 2)}
+      </pre>
+    </div>
+  `
+}) %>

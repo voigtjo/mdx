@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>MDX Platform</title>
+
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 text-gray-900">
+
+<div class="flex h-screen">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-white shadow-xl p-6 border-r">
+    <h1 class="text-2xl font-bold mb-6">MDX Platform</h1>
+
+    <% if (user) { %>
+      <div class="mb-6">
+        <p class="font-medium text-gray-700 mb-1"><%= user.email %></p>
+        <p class="text-sm text-gray-500"><%= user.roles.join(", ") %></p>
+      </div>
+
+      <nav class="space-y-2">
+        <a class="block py-2 px-3 rounded hover:bg-blue-100" href="/dashboard">Dashboard</a>
+        <a class="block py-2 px-3 rounded hover:bg-blue-100" href="/users">Users</a>
+
+        <% if (user.roles.includes("superadmin")) { %>
+          <a class="block py-2 px-3 rounded hover:bg-blue-100" href="/tenants">Tenants</a>
+        <% } %>
+
+        <a class="block py-2 px-3 rounded hover:bg-red-100" href="/logout">Logout</a>
+      </nav>
+    <% } %>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="flex-1 overflow-auto p-10">
+    <div class="max-w-5xl mx-auto">
+      <%- body %>
+    </div>
+  </main>
+
+</div>
+
+</body>
+</html>

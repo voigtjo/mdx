@@ -1,0 +1,78 @@
+############################
+# Node.js / npm / pnpm / yarn
+############################
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Lockfiles, optional
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+############################
+# Build artifacts
+############################
+dist/
+build/
+coverage/
+.cache/
+
+############################
+# OS / Editor files
+############################
+
+.DS_Store
+Thumbs.db
+__MACOSX/
+*.swp
+*.swo
+
+############################
+# Environment
+############################
+
+.env
+.env.*
+!.env.example
+
+############################
+# Logs
+############################
+logs/
+*.log
+
+############################
+# Local dev databases / dumps
+############################
+
+*.sqlite
+*.db
+*.db-journal
+dump.rdb
+
+############################
+# Vite / Webpack / Parcel
+############################
+
+.vite/
+.vscode/
+
+############################
+# Output of MDX compiler
+############################
+
+*.cache
+*.temp
+
+############################
+# Temporary files
+############################
+
+tmp/
+temp/
+*.tmp
+*.bak
