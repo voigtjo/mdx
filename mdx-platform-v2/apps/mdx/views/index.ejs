@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MDX Forms – Übersicht</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+  <header class="bg-white shadow-sm">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-semibold">MDX Forms</h1>
+        <p class="text-sm text-gray-500">
+          Eingeloggt als <span class="font-mono"><%= user.email %></span>
+        </p>
+      </div>
+      <nav class="space-x-4 text-sm">
+        <a href="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
+        <a href="/users" class="text-gray-600 hover:text-gray-900">Users</a>
+        <a href="/tenants" class="text-gray-600 hover:text-gray-900">Tenants</a>
+        <a href="/logout" class="text-red-600 hover:text-red-800">Logout</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-10">
+    <div class="bg-white rounded-xl shadow p-6 flex items-center justify-between">
+      <div>
+        <h2 class="text-lg font-semibold mb-1">MDX-Formulare</h2>
+        <% if (!docs || docs.length === 0) { %>
+          <p class="text-sm text-gray-500">
+            Noch keine MDX-Formulare vorhanden. Lege das erste Formular an 👇
+          </p>
+        <% } else { %>
+          <p class="text-sm text-gray-500">
+            <%= docs.length %> Formular(e) für deinen Tenant.
+          </p>
+        <% } %>
+      </div>
+
+      <a href="/mdx/edit"
+         class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700">
+        Neues Formular
+      </a>
+    </div>
+
+    <% if (docs && docs.length > 0) { %>
+      <div class="mt-6 bg-white rounded-xl shadow p-6">
+        <ul class="divide-y divide-gray-200">
+          <% docs.forEach(doc => { %>
+            <li class="py-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium"><%= doc.title || doc.slug %></div>
+                <div class="text-xs text-gray-500 font-mono"><%= doc.slug %></div>
+              </div>
+              <div class="space-x-2 text-sm">
+                <a href="/mdx/forms/<%= encodeURIComponent(doc.slug) %>"
+                   class="px-3 py-1 rounded border border-gray-300 hover:bg-gray-50">
+                  Formular anzeigen
+                </a>
+                <a href="/mdx/edit/<%= encodeURIComponent(doc.slug) %>"
+                   class="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200">
+                  Bearbeiten
+                </a>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+    <% } %>
+  </main>
+</body>
+</html>

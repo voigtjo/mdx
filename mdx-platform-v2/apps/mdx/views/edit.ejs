@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>MDX Formular bearbeiten</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+  <header class="bg-white shadow-sm">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-semibold">MDX Formular</h1>
+        <p class="text-sm text-gray-500">
+          Eingeloggt als <span class="font-mono"><%= user.email %></span>
+        </p>
+      </div>
+      <nav class="space-x-4 text-sm">
+        <a href="/mdx" class="text-gray-600 hover:text-gray-900">Zurück zur Übersicht</a>
+        <a href="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
+        <a href="/logout" class="text-red-600 hover:text-red-800">Logout</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-10">
+    <form method="post" action="/mdx/save"
+          class="bg-white rounded-xl shadow p-6 space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Slug</label>
+        <input type="text" name="slug"
+               value="<%= doc.slug || '' %>"
+               placeholder="z.B. kundenanfrage"
+               class="w-full border rounded px-3 py-2 text-sm" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">Titel</label>
+        <input type="text" name="title"
+               value="<%= doc.title || '' %>"
+               placeholder="z.B. Kundenanfrage Formular"
+               class="w-full border rounded px-3 py-2 text-sm" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1">MDX Inhalt</label>
+        <textarea name="mdx" rows="12"
+                  class="w-full border rounded px-3 py-2 text-sm font-mono"><%= doc.mdx || '' %></textarea>
+        <p class="mt-1 text-xs text-gray-500">
+          Dieses MDX wird mit <code>mdx-htmx-lib</code> zu einem HTMX-Formular gerendert.
+        </p>
+      </div>
+
+      <div class="flex justify-end">
+        <button type="submit"
+                class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+          Speichern
+        </button>
+      </div>
+    </form>
+  </main>
+</body>
+</html>

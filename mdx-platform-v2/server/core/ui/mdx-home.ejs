@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>MDX App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+  <div class="flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-white shadow h-screen p-4">
+      <h1 class="text-xl font-bold mb-4">MDX Platform</h1>
+
+      <p class="text-sm text-gray-600 mb-4">
+        Eingeloggt als<br>
+        <strong><%= user.email %></strong>
+      </p>
+
+      <nav class="space-y-2">
+        <div>
+          <p class="text-xs uppercase text-gray-400 mb-1">Apps</p>
+          <a href="/mdx" class="block px-2 py-1 rounded bg-blue-100 text-blue-800 text-sm">
+            MDX App
+          </a>
+        </div>
+
+        <div class="mt-4">
+          <p class="text-xs uppercase text-gray-400 mb-1">Account</p>
+          <a href="/logout" class="block px-2 py-1 rounded text-sm text-red-700 hover:bg-red-100">
+            Logout
+          </a>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 p-8">
+      <h2 class="text-2xl font-bold mb-4">MDX App</h2>
+      <p class="mb-4 text-gray-700">
+        MVP-Status: Plattform läuft, Login funktioniert, MDX-App ist eingebunden.
+      </p>
+
+      <div class="p-4 bg-white rounded shadow">
+        <p class="text-sm text-gray-600">
+          Nächster Schritt: MDX-Dokumente speichern und mit <code>mdx-htmx-lib</code>
+          in HTMX-Formulare rendern.
+        </p>
+      </div>
+    </main>
+
+  </div>
+
+</body>
+</html>

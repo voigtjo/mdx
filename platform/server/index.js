@@ -78,5 +78,6 @@ await loadApps(app);
 /**
  * Start Server
  */
-app.listen({ port: 4000 });
-console.log("Platform running at http://localhost:4000");
+const port = process.env.PORT;
+await app.listen({ port });
+console.log(`Platform running at http://localhost:${port}`);

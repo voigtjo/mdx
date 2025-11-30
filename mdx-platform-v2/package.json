@@ -1,0 +1,25 @@
+{
+  "name": "mdx-platform-v2",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
+  },
+  "dependencies": {
+    "fastify": "4.25.2",
+    "@fastify/static": "6.11.1",
+    "@fastify/view": "7.4.0",
+    "@fastify/cookie": "9.1.0",
+    "@fastify/session": "9.0.0",
+    "ejs": "3.1.9",
+    "mongodb": "6.3.0",
+    "dotenv": "17.2.3",
+    "bcryptjs": "2.4.3",
+    "uuid": "9.0.1",
+    "mdx-htmx-lib": "file:../mdx-htmx-lib"
+  },
+  "devDependencies": {
+    "nodemon": "3.1.0"
+  }
+}
