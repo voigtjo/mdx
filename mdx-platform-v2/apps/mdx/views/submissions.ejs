@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Submissions – <%= slug %></title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-5xl mx-auto py-10">
+    <!-- Header / Topbar -->
+    <header class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold">
+          Eingänge für <span class="font-mono text-blue-600"><%= slug %></span>
+        </h1>
+        <p class="text-sm text-gray-500">
+          Eingeloggt als <span class="font-mono"><%= user.email %></span>
+        </p>
+      </div>
+      <nav class="space-x-4 text-sm">
+        <a href="/mdx" class="text-blue-600 hover:underline">Zurück zur Übersicht</a>
+        <a href="/dashboard" class="text-gray-600 hover:underline">Dashboard</a>
+        <a href="/logout" class="text-red-600 hover:underline">Logout</a>
+      </nav>
+    </header>
+
+    <main class="bg-white rounded-xl shadow p-6">
+      <% if (submissions.length === 0) { %>
+        <p class="text-sm text-gray-500">
+          Keine Einsendungen vorhanden.
+        </p>
+      <% } else { %>
+        <div class="space-y-6">
+          <% submissions.forEach(function (s, index) { %>
+            <article class="border border-gray-200 rounded-lg p-4">
+              <!-- Kopfzeile pro Submission -->
+              <div class="flex items-center justify-between mb-4">
+                <div class="text-xs text-gray-500">
+                  #<%= index + 1 %> –
+                  <span><%= new Date(s.createdAt).toLocaleString("de-DE") %></span>
+                </div>
+              </div>
+
+              <!-- Form-artiges Layout: Label + Wert -->
+              <div class="grid gap-4 sm:grid-cols-2">
+                <% Object.entries(s.data || {}).forEach(function ([key, value]) { %>
+                  <div>
+                    <div class="text-xs font-medium text-gray-500 mb-1">
+                      <%= key %>
+                    </div>
+                    <div class="px-3 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm break-words">
+                      <%= value %>
+                    </div>
+                  </div>
+                <% }); %>
+              </div>
+
+              <!-- Optional: Roh-JSON zum Aufklappen -->
+              <details class="mt-4 text-xs text-gray-500">
+                <summary class="cursor-pointer select-none">
+                  Rohdaten (JSON) anzeigen
+                </summary>
+                <pre class="mt-2 bg-gray-50 rounded p-3 overflow-x-auto text-[11px]">
+<%= JSON.stringify(s.data, null, 2) %>
+                </pre>
+              </details>
+            </article>
+          <% }); %>
+        </div>
+      <% } %>
+    </main>
+  </div>
+</body>
+</html>
