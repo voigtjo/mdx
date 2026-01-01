@@ -8,6 +8,7 @@
 </head>
 <body class="bg-gray-100">
   <div class="max-w-5xl mx-auto py-10">
+    <!-- Header -->
     <header class="flex items-center justify-between mb-8">
       <div>
         <h1 class="text-2xl font-bold">MDX Formular</h1>
@@ -23,56 +24,178 @@
     </header>
 
     <main class="bg-white rounded-xl shadow p-6">
-      <form method="post" action="/mdx/save" class="space-y-6">
-        <!-- Slug -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="slug">
-            Slug
-          </label>
-          <input
-            id="slug"
-            name="slug"
-            type="text"
-            placeholder="z.B. kundenanfrage"
-            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-            value="<%= doc.slug || '' %>"
-          />
-          <p class="mt-1 text-xs text-gray-500">
-            Wird in der URL verwendet, z.B. <code>/mdx/forms/&lt;slug&gt;/submit</code>.
-          </p>
+      <% 
+        const formType = doc.type || "generic";
+        const effectiveKey = doc.uniqueFieldKey 
+          || (formType === "user" ? "userId" 
+          : (formType === "product" ? "productId" : ""));
+        const slugPreview = (doc.slug && doc.slug.trim().length > 0) ? doc.slug.trim() : "example";
+      %>
+
+      <form method="post" action="/mdx/save" class="space-y-8">
+        <!-- erste Zeile: Slug + Titel -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Slug -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="slug">
+              Slug
+            </label>
+            <input
+              id="slug"
+              name="slug"
+              type="text"
+              placeholder="z.B. kundenanfrage"
+              class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              value="<%= doc.slug || '' %>"
+            />
+            <p class="mt-1 text-xs text-gray-500">
+              Wird in der URL verwendet, z.B. <code>/mdx/forms/&lt;slug&gt;/submit</code>.
+            </p>
+          </div>
+
+          <!-- Titel -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="title">
+              Titel
+            </label>
+            <input
+              id="title"
+              name="title"
+              type="text"
+              placeholder="z.B. Kundenanfrage Formular"
+              class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              value="<%= doc.title || '' %>"
+            />
+          </div>
         </div>
 
-        <!-- Titel -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="title">
-            Titel
-          </label>
-          <input
-            id="title"
-            name="title"
-            type="text"
-            placeholder="z.B. Kundenanfrage Formular"
-            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
-            value="<%= doc.title || '' %>"
-          />
+        <!-- zweite Zeile: Typ + Business Key -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <!-- Formulartyp -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="type">
+              Formulartyp
+            </label>
+            <select
+              id="type"
+              name="type"
+              class="mt-1 block w-full rounded-lg border-gray-300 bg-white shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+            >
+              <option value="generic" <%= formType === "generic" ? "selected" : "" %>>
+                Generisch
+              </option>
+              <option value="user" <%= formType === "user" ? "selected" : "" %>>
+                User-Form
+              </option>
+              <option value="product" <%= formType === "product" ? "selected" : "" %>>
+                Produkt-Form
+              </option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">
+              Bestimmt, ob dieses Formular User- oder Produkt-Stammdaten bezieht (wird später
+              für Validierung &amp; Workflows genutzt).
+            </p>
+          </div>
+
+          <!-- Eindeutiges Feld -->
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1" for="uniqueFieldKey">
+              Eindeutiges Feld (Business Key)
+            </label>
+            <input
+              id="uniqueFieldKey"
+              name="uniqueFieldKey"
+              type="text"
+              placeholder="z.B. userId oder productId"
+              class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              value="<%= effectiveKey %>"
+            />
+            <p class="mt-1 text-xs text-gray-500">
+              Name des Formularfelds, das als eindeutiger Schlüssel verwendet wird. <br/>
+              Für User-Formulare wird standardmäßig <code>userId</code>, für Produkt-Formulare
+              <code>productId</code> verwendet.
+            </p>
+          </div>
         </div>
 
-        <!-- MDX Inhalt -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1" for="mdx">
-            MDX Inhalt
+        <!-- Gruppen-Auswahl -->
+        <section>
+          <h2 class="text-sm font-semibold text-gray-700 mb-2">
+            Gruppen (Zugriff &amp; Verantwortlichkeit)
+          </h2>
+          <div class="border rounded-lg p-4 bg-gray-50">
+            <% if (!allGroups || allGroups.length === 0) { %>
+              <p class="text-xs text-gray-500">
+                (Noch keine Gruppen definiert)
+              </p>
+            <% } else { %>
+              <label class="block text-xs text-gray-600 mb-2" for="groupIds">
+                Halte Strg (Windows) bzw. ⌘ Cmd (Mac) gedrückt, um mehrere Gruppen auszuwählen.
+                Nur Benutzer mit Rollen in diesen Gruppen sehen Aufgaben zu diesem Formular.
+              </label>
+              <select
+                id="groupIds"
+                name="groupIds"
+                multiple
+                size="4"
+                class="mt-1 block w-full rounded-lg border-gray-300 bg-white shadow-sm focus:ring-blue-500 focus:border-blue-500 text-sm"
+              >
+                <% 
+                  const selectedGroups = new Set((doc.groupIds || []).map(String));
+                  allGroups.forEach(g => { 
+                %>
+                  <option
+                    value="<%= g._id %>"
+                    <%= selectedGroups.has(String(g._id)) ? "selected" : "" %>
+                  >
+                    <%= g.name %>
+                  </option>
+                <% }) %>
+              </select>
+            <% } %>
+          </div>
+        </section>
+
+        <!-- Header-Vorschau -->
+        <section>
+          <h2 class="text-sm font-semibold text-gray-700 mb-2">
+            Formular-Header (automatisch generiert)
+          </h2>
+          <div class="border rounded-lg p-4 bg-gray-50">
+            <pre
+              id="headerPreview"
+              class="text-xs font-mono text-gray-800 whitespace-pre-wrap break-words"
+            >@form action="/mdx/forms/<%= slugPreview %>/submit"<%=
+  effectiveKey ? ` key="${effectiveKey}"` : "" %>
+
+@endform</pre>
+            <p class="mt-2 text-xs text-gray-500">
+              Dieser Header wird beim Speichern automatisch aus Slug und eindeutigem Feld erzeugt
+              und um den MDX-Inhalt herum gelegt. Im Textfeld unten bearbeitest du nur den Inhalt
+              zwischen <code>@form</code> und <code>@endform</code>.
+            </p>
+          </div>
+        </section>
+
+        <!-- MDX Body -->
+        <section>
+          <label class="block text-sm font-medium text-gray-700 mb-1" for="mdxBody">
+            MDX Inhalt (Body)
           </label>
           <textarea
-            id="mdx"
-            name="mdx"
+            id="mdxBody"
+            name="mdxBody"
             rows="12"
             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-          ><%= doc.mdx || '' %></textarea>
+          ><%= mdxBody || '' %></textarea>
           <p class="mt-1 text-xs text-gray-500">
-            Dieses MDX wird mit <code>mdx-htmx-lib</code> zu einem HTMX-Formular gerendert.
+            Hier nur die Formularfelder eintragen (z.B. <code>@input</code>, <code>@select</code>,
+            <code>@checkbox</code>, <code>@submit</code>). Der <code>@form</code>-Block wird
+            automatisch ergänzt.
           </p>
-        </div>
+        </section>
 
+        <!-- Footer: Link + Speichern -->
         <div class="flex items-center justify-between">
           <% if (doc.slug) { %>
             <a
@@ -97,5 +220,51 @@
       </form>
     </main>
   </div>
+
+  <!-- Kleine JS-Logik: Typ -> Key + Header-Preview -->
+  <script>
+    (function () {
+      const typeSelect = document.getElementById("type");
+      const slugInput = document.getElementById("slug");
+      const keyInput = document.getElementById("uniqueFieldKey");
+      const headerPreview = document.getElementById("headerPreview");
+
+      function computeDefaultKey(type) {
+        if (type === "user") return "userId";
+        if (type === "product") return "productId";
+        return "";
+      }
+
+      function updateHeaderPreview() {
+        const slug = (slugInput.value || "").trim() || "example";
+        const key = (keyInput.value || "").trim();
+
+        let header = `@form action="/mdx/forms/${slug}/submit"`;
+        if (key) {
+          header += ` key="${key}"`;
+        }
+        headerPreview.textContent = header + "\\n\\n@endform";
+      }
+
+      function onTypeChange(fromInit) {
+        const type = typeSelect.value;
+        const current = (keyInput.value || "").trim();
+
+        // Nur überschreiben, wenn wir initial sind oder das Feld leer ist
+        if (fromInit || current === "") {
+          keyInput.value = computeDefaultKey(type);
+        }
+        updateHeaderPreview();
+      }
+
+      typeSelect.addEventListener("change", () => onTypeChange(false));
+      slugInput.addEventListener("input", updateHeaderPreview);
+      keyInput.addEventListener("input", updateHeaderPreview);
+
+      // Initiale Synchronisierung
+      onTypeChange(true);
+      updateHeaderPreview();
+    })();
+  </script>
 </body>
 </html>

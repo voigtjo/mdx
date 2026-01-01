@@ -1,37 +1,116 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
-  <meta charset="utf-8" />
-  <title><%= doc.title || doc.slug %> – MDX Formular</title>
+  <meta charset="utf-8">
+  <title><%= doc.title || "MDX Formular" %></title>
   <script src="https://unpkg.com/htmx.org@1.9.10"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100">
-
-  <header class="bg-white shadow-sm">
-    <div class="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+  <div class="max-w-3xl mx-auto py-10">
+    <!-- Header -->
+    <header class="flex items-center justify-between mb-8">
       <div>
-        <h1 class="text-xl font-semibold"><%= doc.title || doc.slug %></h1>
+        <h1 class="text-2xl font-bold"><%= doc.title || "MDX Formular" %></h1>
         <p class="text-sm text-gray-500">
-          Tenant-Formular aus MDX gerendert.
+          Eingeloggt als <span class="font-mono"><%= user.email %></span>
         </p>
       </div>
       <nav class="space-x-4 text-sm">
-        <a href="/mdx" class="text-gray-600 hover:text-gray-900">Zurück zur Übersicht</a>
-        <a href="/logout" class="text-red-600 hover:text-red-800">Logout</a>
+        <a href="/mdx" class="text-blue-600 hover:underline">Zurück zur Übersicht</a>
+        <a href="/mdx/tasks" class="text-gray-600 hover:underline">Aufgaben</a>
+        <a href="/logout" class="text-red-600 hover:underline">Logout</a>
       </nav>
-    </div>
-  </header>
+    </header>
 
-  <main class="max-w-3xl mx-auto px-6 py-10">
-    <div class="bg-white rounded-xl shadow p-6">
-      <!-- hier kommt das von mdx-htmx-lib erzeugte Formular rein -->
-      <div>
+    <main class="bg-white rounded-xl shadow p-6">
+      <% const formType = doc.type || "generic"; %>
+
+      <% if (formType === "user") { %>
+        <div class="mb-6 rounded-md bg-blue-50 border border-blue-100 p-4">
+          <h2 class="text-sm font-semibold text-blue-900 mb-1">User-Formular</h2>
+          <p class="text-xs text-blue-800">
+            Dieses Formular bezieht sich auf einen konkreten Benutzer. Wähle oben im Formular
+            einen User aus – die <code>userId</code> wird zusammen mit den restlichen Feldern
+            gespeichert.
+          </p>
+        </div>
+      <% } %>
+
+      <!-- Hier rendert das MDX-Formular -->
+      <div id="mdxFormContainer" class="space-y-4">
         <%- formHtml %>
       </div>
+    </main>
+  </div>
 
-      <div id="result" class="mt-4"></div>
-    </div>
-  </main>
+  <script>
+    (function () {
+      const formType = "<%= doc.type || "generic" %>";
+      const users = <%- JSON.stringify(users || []) %>;
+
+      if (formType !== "user") {
+        return; // Kein User-Dropdown nötig
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        const container = document.getElementById("mdxFormContainer");
+        if (!container) return;
+
+        const form = container.querySelector("form");
+        if (!form) return;
+
+        // Falls keine User vorhanden sind, Hinweis einblenden
+        if (!users || users.length === 0) {
+          const warn = document.createElement("div");
+          warn.className = "mb-4 rounded-md bg-red-50 border border-red-100 p-3 text-xs text-red-700";
+          warn.textContent = "Hinweis: Es sind noch keine Benutzer im System hinterlegt. " +
+            "Der Platzhalter für die Auswahl wird trotzdem angezeigt.";
+          form.prepend(warn);
+        }
+
+        // Wrapper für Feld
+        const field = document.createElement("div");
+        field.className = "mb-4";
+
+        const label = document.createElement("label");
+        label.className = "block text-sm font-medium text-gray-700 mb-1";
+        label.setAttribute("for", "userId");
+        label.textContent = "User";
+
+        const select = document.createElement("select");
+        select.id = "userId";
+        select.name = "userId";
+        select.className =
+          "mt-1 block w-full rounded-lg border-gray-300 bg-white shadow-sm " +
+          "focus:ring-blue-500 focus:border-blue-500 text-sm";
+
+        // Platzhalteroption
+        const optPlaceholder = document.createElement("option");
+        optPlaceholder.value = "";
+        optPlaceholder.textContent = "Bitte Benutzer auswählen …";
+        select.appendChild(optPlaceholder);
+
+        // Optionen aus der User-Liste
+        users.forEach(u => {
+          const opt = document.createElement("option");
+          opt.value = String(u._id);
+          opt.textContent = u.name || u.email || String(u._id);
+          select.appendChild(opt);
+        });
+
+        const help = document.createElement("p");
+        help.className = "mt-1 text-xs text-gray-500";
+        help.innerHTML = "Die gewählte <code>userId</code> wird als Business Key gespeichert.";
+
+        field.appendChild(label);
+        field.appendChild(select);
+        field.appendChild(help);
+
+        // Feld als erstes Element im Formular einfügen
+        form.insertBefore(field, form.firstChild);
+      });
+    })();
+  </script>
 </body>
 </html>

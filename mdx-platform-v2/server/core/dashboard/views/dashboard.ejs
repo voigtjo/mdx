@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="max-w-6xl mx-auto py-10">
+    <header class="flex items-center justify-between mb-8">
+      <div>
+        <h1 class="text-2xl font-bold">Dashboard</h1>
+        <p class="text-sm text-gray-500">
+          Eingeloggt als <span class="font-mono"><%= user.email %></span>
+        </p>
+      </div>
+      <nav class="space-x-4 text-sm">
+        <a href="/dashboard" class="font-semibold text-blue-600 hover:underline">Dashboard</a>
+        <a href="/mdx" class="text-gray-600 hover:underline">MDX Forms</a>
+        <a href="/users" class="text-gray-600 hover:underline">Users</a>
+        <a href="/tenants" class="text-gray-600 hover:underline">Tenants</a>
+        <a href="/logout" class="text-red-600 hover:underline">Logout</a>
+      </nav>
+    </header>
+
+    <main class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section class="bg-white rounded-xl shadow p-6 flex flex-col">
+        <h2 class="text-sm font-semibold text-gray-700 mb-2">Meine Aufgaben</h2>
+        <p class="text-3xl font-bold mb-2"><%= assignedCount %></p>
+        <p class="text-xs text-gray-500 flex-1">
+          Anzahl der Formular-Aufgaben, die dir derzeit zugewiesen sind.
+        </p>
+        <a
+          href="/mdx/tasks"
+          class="mt-4 inline-flex items-center px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700"
+        >
+          Aufgaben ansehen
+        </a>
+      </section>
+
+      <section class="bg-white rounded-xl shadow p-6 flex flex-col">
+        <h2 class="text-sm font-semibold text-gray-700 mb-2">Offene Aufgaben (Operator)</h2>
+        <p class="text-3xl font-bold mb-2"><%= openCount %></p>
+        <p class="text-xs text-gray-500 flex-1">
+          Aufgaben ohne Bearbeiter in Gruppen, in denen du Operator bist.
+        </p>
+        <a
+          href="/mdx/tasks"
+          class="mt-4 inline-flex items-center px-3 py-2 rounded-lg bg-gray-800 text-white text-xs font-medium hover:bg-gray-900"
+        >
+          Aufgaben verwalten
+        </a>
+      </section>
+
+      <section class="bg-white rounded-xl shadow p-6 flex flex-col">
+        <h2 class="text-sm font-semibold text-gray-700 mb-2">Formular-Übersicht</h2>
+        <p class="text-3xl font-bold mb-2"><%= formCount %></p>
+        <p class="text-xs text-gray-500 flex-1">
+          Anzahl der MDX-Formulare in deinem Tenant.
+        </p>
+        <a
+          href="/mdx"
+          class="mt-4 inline-flex items-center px-3 py-2 rounded-lg bg-white border border-gray-300 text-xs font-medium text-gray-700 hover:bg-gray-50"
+        >
+          Zu den Formularen
+        </a>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

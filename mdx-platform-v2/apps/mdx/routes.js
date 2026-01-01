@@ -11,29 +11,25 @@ import {
   getDoc,
   upsertDoc,
   saveSubmission,
-  listSubmissions
+  listSubmissions,
+  listGroups,
+  getTasksForUser,
+  claimTask,
+  completeTask,
+  listUsers           // NEU
 } from "./model.js";
 
-// ---------------------------------------------------------
-// EJS: renderFile als Promise
-// ---------------------------------------------------------
 const renderFile = promisify(ejs.renderFile);
-
-// Absoluter Pfad zu apps/mdx/views
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const viewsRoot = path.join(__dirname, "views");
 
-// Helper um View als HTML zu rendern und zu senden
 async function render(reply, viewName, data) {
   const fullPath = path.join(viewsRoot, viewName);
   const html = await renderFile(fullPath, data);
-  reply.type("text/html; charset=utf-8").send(html);
+  reply.type("text/html").send(html);
 }
 
-// ---------------------------------------------------------
-// Helper: Login-Pflicht
-// ---------------------------------------------------------
 function requireUser(req, reply) {
   if (!req.session || !req.session.user) {
     reply.redirect("/login");
@@ -42,14 +38,29 @@ function requireUser(req, reply) {
   return req.session.user;
 }
 
-// ---------------------------------------------------------
-// Routen-Registrierung
-// ---------------------------------------------------------
+// kleine Helfer, um MDX in Header + Body zu zerlegen
+function splitMdx(mdx) {
+  if (!mdx) return { header: "", body: "" };
 
+  const trimmed = mdx.trim();
+  const headerMatch = trimmed.match(/^@form[^\n]*\n([\s\S]*?)\n@endform\s*$/);
+
+  if (!headerMatch) {
+    // kein klassischer Wrapper – dann alles als Body behandeln
+    return { header: "", body: trimmed };
+  }
+
+  return {
+    header: trimmed.substring(0, trimmed.indexOf("\n")),
+    body: headerMatch[1] || ""
+  };
+}
+
+// -------------------------------------------------------------------
+// Routen
+// -------------------------------------------------------------------
 export function registerMdxRoutes(app) {
-  //
-  // Übersicht: Liste aller MDX-Formulare
-  //
+  // Übersicht
   app.get("/mdx", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
@@ -62,62 +73,115 @@ export function registerMdxRoutes(app) {
     });
   });
 
-  //
-  // Formular: neues / bestehendes MDX-Dokument bearbeiten
-  //
+  // KEINE zweite /mdx/-Route mehr – sonst Dublettenfehler
+
+  // -----------------------------------------------------------------
+  // Formular bearbeiten / neu anlegen
+  // -----------------------------------------------------------------
   app.get("/mdx/edit/:slug?", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
 
-    const slug = req.params.slug || "";
-    let doc = slug ? await getDoc(user.tenantId, slug) : null;
+    const slugParam = req.params.slug || "";
+    let doc = slugParam ? await getDoc(user.tenantId, slugParam) : null;
+    const allGroups = await listGroups(user.tenantId);
 
-    // Wenn noch nichts existiert: Beispiel vorbelegen
+    let mdxBody = "";
+
     if (!doc) {
-      const exampleSlug = slug || "example";
+      // neues Formular
+      const exampleSlug = slugParam || "example";
       doc = {
-        slug,
+        slug: slugParam,
         title: "",
-        mdx: `@form action="/mdx/forms/${exampleSlug}/submit"
-@input name="kunde_name"  label="Name"
+        type: "generic",
+        groupIds: [],
+        uniqueFieldKey: ""
+      };
+
+      mdxBody = `@input name="kunde_name"  label="Name"
 @input name="kunde_email" label="E-Mail"
 @input name="firma"       label="Firma"
 @select name="produkt"    label="Produkt" options="A-Standard,B-Plus,C-Premium"
 @checkbox name="agb"        label="AGB gelesen und akzeptiert"
 @checkbox name="newsletter" label="Newsletter abonnieren?"
-@submit label="Anfrage absenden"
-@endform`
-      };
+@submit label="Anfrage absenden"`;
+
+      doc._exampleSlug = exampleSlug;
+    } else {
+      // bestehendes Formular: Body aus doc.mdx herauslösen
+      const { body } = splitMdx(doc.mdx || "");
+      mdxBody = body;
     }
 
     return render(reply, "edit.ejs", {
       user,
-      doc
+      doc,
+      allGroups,
+      mdxBody
     });
   });
 
-  //
-  // MDX-Formular speichern
-  //
+  // -----------------------------------------------------------------
+  // Formular speichern
+  // -----------------------------------------------------------------
   app.post("/mdx/save", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
 
-    const { slug, title, mdx } = req.body || {};
+    let { slug, title, type, uniqueFieldKey } = req.body || {};
 
-    console.log("[MDX] Save form", { slug, title });
+    // Body kann als "mdxBody" (neu) oder "mdx" (alt) kommen
+    const mdxBodyRaw = (req.body.mdxBody ?? req.body.mdx ?? "").toString();
 
-    if (!slug || !title || !mdx) {
-      return reply.code(400).send("slug, title und mdx sind erforderlich");
+    // groupIds kann als String oder Array kommen
+    let groupIds = [];
+    if (Array.isArray(req.body.groupIds)) {
+      groupIds = req.body.groupIds;
+    } else if (req.body.groupIds) {
+      groupIds = [req.body.groupIds];
     }
 
-    await upsertDoc(user.tenantId, { slug, title, mdx });
+    if (!slug || !title || !mdxBodyRaw.trim()) {
+      return reply.code(400).send("slug, title und mdxBody sind erforderlich");
+    }
+
+    const trimmedBody = mdxBodyRaw.trim();
+
+    const finalType = type || "generic";
+
+    // Business-Key: aus Formular oder Default je nach Typ
+    let keyForHeader = (uniqueFieldKey || "").trim();
+    if (!keyForHeader) {
+      if (finalType === "user") keyForHeader = "userId";
+      else if (finalType === "product") keyForHeader = "productId";
+    }
+
+    const keyAttr = keyForHeader ? ` key="${keyForHeader}"` : "";
+
+    const header = `@form action="/mdx/forms/${slug}/submit"${keyAttr}`;
+    const footer = "@endform";
+
+    const mdx = `${header}
+${trimmedBody}
+${footer}
+`;
+
+    await upsertDoc(user.tenantId, {
+      slug,
+      title,
+      mdx,
+      type: finalType,
+      groupIds,
+      uniqueFieldKey: keyForHeader || null
+    });
+
     return reply.redirect(`/mdx/edit/${encodeURIComponent(slug)}`);
   });
 
-  //
-  // MDX → HTMX: Formularseite anzeigen
-  //
+  // -----------------------------------------------------------------
+  // Formular anzeigen (MDX -> HTMX)
+  // -----------------------------------------------------------------
   app.get("/mdx/forms/:slug", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
@@ -130,16 +194,21 @@ export function registerMdxRoutes(app) {
 
     const formHtml = mdxToHtmx(doc.mdx);
 
+    // NEU: User-Liste nur für User-Forms laden
+    let users = [];
+    if (doc.type === "user") {
+      users = await listUsers(user.tenantId);
+    }
+
     return render(reply, "form.ejs", {
       user,
       doc,
-      formHtml
+      formHtml,
+      users
     });
   });
 
-  //
   // Formular-Submit: speichern + JSON-Dump anzeigen
-  //
   app.post("/mdx/forms/:slug/submit", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
@@ -149,7 +218,7 @@ export function registerMdxRoutes(app) {
 
     await saveSubmission(user.tenantId, slug, body);
 
-    reply.type("text/html; charset=utf-8");
+    reply.type("text/html");
     return `
 <div class="mt-4 p-4 bg-green-100 border border-green-300 rounded-lg text-sm font-mono">
   <div class="font-semibold mb-2">Formular empfangen (gespeichert):</div>
@@ -157,9 +226,9 @@ export function registerMdxRoutes(app) {
 </div>`;
   });
 
-  //
-  // Submissions-Ansicht (alle Einsendungen zu einem Formular)
-  //
+  // -----------------------------------------------------------------
+  // Submissions-Ansicht
+  // -----------------------------------------------------------------
   app.get("/mdx/forms/:slug/submissions", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
@@ -173,9 +242,48 @@ export function registerMdxRoutes(app) {
       submissions
     });
   });
+
+  // -----------------------------------------------------------------
+  // Tasks-Ansicht
+  // -----------------------------------------------------------------
+  app.get("/mdx/tasks", async (req, reply) => {
+    const user = requireUser(req, reply);
+    if (!user) return;
+
+    const { assignedTasks, openTasks } = await getTasksForUser(
+      user.tenantId,
+      user
+    );
+
+    return render(reply, "tasks.ejs", {
+      user,
+      assignedTasks,
+      openTasks
+    });
+  });
+
+  // Aufgabe übernehmen
+  app.post("/mdx/tasks/:id/claim", async (req, reply) => {
+    const user = requireUser(req, reply);
+    if (!user) return;
+
+    const { id } = req.params;
+    await claimTask(user.tenantId, id, user);
+    reply.redirect("/mdx/tasks");
+  });
+
+  // Aufgabe als erledigt markieren
+  app.post("/mdx/tasks/:id/complete", async (req, reply) => {
+    const user = requireUser(req, reply);
+    if (!user) return;
+
+    const { id } = req.params;
+    await completeTask(user.tenantId, id, user);
+    reply.redirect("/mdx/tasks");
+  });
 }
 
-// Fallback-Export, falls irgendwo noch "register" verwendet wird
+// Fallback-Export
 export function register(app) {
   return registerMdxRoutes(app);
 }

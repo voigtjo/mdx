@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Tenants – MDX Platform</title>
+  <link rel="stylesheet" href="/public/css/tailwind.css" />
+</head>
+<body class="bg-gray-100">
+  <div class="min-h-screen">
+    <!-- Top-Bar -->
+    <header class="bg-white shadow-sm">
+      <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-lg font-semibold text-gray-900">MDX Platform – Tenants</h1>
+          <p class="text-xs text-gray-500">
+            Eingeloggt als <span class="font-mono"><%= user.email %></span>
+          </p>
+        </div>
+        <nav class="space-x-4 text-sm">
+          <a href="/dashboard" class="text-gray-600 hover:text-gray-900">Dashboard</a>
+          <a href="/users" class="text-gray-600 hover:text-gray-900">Users</a>
+          <a href="/tenants" class="text-blue-600 font-semibold">Tenants</a>
+          <a href="/logout" class="text-red-600 hover:text-red-800">Logout</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="max-w-6xl mx-auto px-6 py-8">
+      <div class="flex items-center justify-between mb-6">
+        <div>
+          <h2 class="text-2xl font-bold text-gray-900">Tenants</h2>
+          <p class="text-sm text-gray-500">
+            Auflistung aller in der <span class="font-mono">platform.tenants</span>-Collection
+            vorhandenen Tenants (nur lesend, MVP).
+          </p>
+        </div>
+        <!-- Für später: Neuer Tenant -->
+        <button
+          type="button"
+          class="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 text-sm cursor-not-allowed"
+          title="Create kommt im nächsten Schritt"
+        >
+          Neuer Tenant (coming soon)
+        </button>
+      </div>
+
+      <% if (!tenants || tenants.length === 0) { %>
+        <div class="bg-white rounded-xl shadow p-6 text-sm text-gray-500">
+          Es sind noch keine Tenants in der <code>platform.tenants</code>-Collection vorhanden.
+        </div>
+      <% } else { %>
+        <div class="bg-white rounded-xl shadow overflow-hidden">
+          <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-2 text-left font-semibold text-gray-600">ID</th>
+                <th class="px-4 py-2 text-left font-semibold text-gray-600">Key / Slug</th>
+                <th class="px-4 py-2 text-left font-semibold text-gray-600">Name</th>
+                <th class="px-4 py-2 text-left font-semibold text-gray-600">DB-Name</th>
+                <th class="px-4 py-2 text-left font-semibold text-gray-600">Weitere Felder</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              <% tenants.forEach(t => { %>
+                <tr class="hover:bg-gray-50">
+                  <td class="px-4 py-2 font-mono text-xs text-gray-500">
+                    <%= t._id %>
+                  </td>
+                  <td class="px-4 py-2">
+                    <%= t.key || t.slug || t.code || "-" %>
+                  </td>
+                  <td class="px-4 py-2">
+                    <%= t.name || "-" %>
+                  </td>
+                  <td class="px-4 py-2 font-mono text-xs text-gray-600">
+                    <%= t.dbName || t.database || t.db || "-" %>
+                  </td>
+                  <td class="px-4 py-2">
+                    <details class="text-xs text-gray-500">
+                      <summary class="cursor-pointer select-none">JSON ansehen</summary>
+                      <pre class="mt-2 bg-gray-50 rounded p-2 overflow-x-auto"><%= JSON.stringify(t, null, 2) %></pre>
+                    </details>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </main>
+  </div>
+</body>
+</html>

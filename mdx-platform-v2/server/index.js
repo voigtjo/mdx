@@ -9,7 +9,14 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
 import { registerLoginRoutes } from "./core/auth/login.js";
+
+// MDX-App
 import { register as registerMdxRoutes } from "../apps/mdx/routes.js";
+
+// NEU: Dashboard, Users, Tenants
+import { register as registerDashboardRoutes } from "./core/dashboard/routes.js";
+import { register as registerUserRoutes } from "./core/users/routes.js";
+import { register as registerTenantRoutes } from "./core/tenants/routes.js";
 
 dotenv.config();
 
@@ -20,7 +27,6 @@ const app = Fastify({
   logger: true,
   ignoreTrailingSlash: true
 });
-
 
 /**
  * Views – wie in platform
@@ -62,6 +68,8 @@ app.addContentTypeParser("*", (req, payload, done) => {
         const params = new URLSearchParams(data);
         const body = {};
         for (const [key, value] of params.entries()) {
+          // Achtung: Mehrfach-Felder würden hier überschrieben,
+          // das reicht für den aktuellen Stand aber aus.
           body[key] = value;
         }
         done(null, body);
@@ -91,17 +99,27 @@ app.register(fastifySession, {
 });
 
 /**
- * Root → Login
+ * Root
+ * - wenn eingeloggt → Dashboard
+ * - sonst → Login
  */
 app.get("/", async (req, reply) => {
+  if (req.session && req.session.user) {
+    return reply.redirect("/dashboard");
+  }
   return reply.redirect("/login");
 });
 
 /**
- * Login & MDX-Routen
+ * Login & Feature-Routen
  */
-registerLoginRoutes(app);
-registerMdxRoutes(app);
+registerLoginRoutes(app);          // /login, /logout, etc.
+registerMdxRoutes(app);            // /mdx, /mdx/forms/..., /mdx/tasks, ...
+
+// NEU:
+registerDashboardRoutes(app);      // /dashboard
+registerUserRoutes(app);           // /users, /users/new, /users/:id/edit, /users/save
+registerTenantRoutes(app);         // /tenants (Platzhalter)
 
 /**
  * Start Server
