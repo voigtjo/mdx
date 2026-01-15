@@ -1,0 +1,8 @@
+<%- include("./tenant_nav.ejs", {
+  title: (typeof title !== "undefined" ? title : (locals && locals.title)),
+  user:  (typeof user !== "undefined" ? user : (locals && locals.user)),
+  tenantId: (typeof tenantId !== "undefined" ? tenantId : (locals && locals.tenantId)),
+  enabledApps: (typeof enabledApps !== "undefined" ? enabledApps : ((locals && locals.enabledApps) ? locals.enabledApps : [])),
+  activeSection: (typeof activeSection !== "undefined" ? activeSection : (locals && locals.activeSection)),
+  currentApp: (typeof currentApp !== "undefined" ? currentApp : (locals && locals.currentApp))
+}) %>

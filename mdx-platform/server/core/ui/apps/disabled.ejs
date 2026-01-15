@@ -1,0 +1,14 @@
+<%- include("../layout.ejs", { title: "App deaktiviert", user }) %>
+
+<div class="max-w-3xl mx-auto">
+  <h1 class="text-2xl font-bold mb-2">App deaktiviert</h1>
+
+  <p class="text-gray-600 mb-6">
+    Die App "<%= appName %>" ist für den Tenant "<%= tenantId %>" aktuell deaktiviert.
+  </p>
+
+  <a class="px-4 py-2 rounded bg-blue-600 text-white"
+     href="/tenant/<%= tenantId %>/apps">
+    Zu den Tenant Apps
+  </a>
+</div>

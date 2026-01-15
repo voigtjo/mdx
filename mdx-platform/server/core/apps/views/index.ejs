@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <title>Tenant Apps – <%= tenantName %></title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100">
+  <div class="max-w-6xl mx-auto py-10">
+
+    <!-- Header Bar -->
+<header class="mb-8">
+  <%- include("../../ui/partials/tenant_nav.ejs", {
+    title: "Tenant Apps",
+    user,
+    tenantId: tenantName,
+    enabledApps: (locals && locals.enabledApps) ? locals.enabledApps : [],
+    activeSection: "tenant",
+    currentApp: null
+  }) %>
+</header>
+
+
+
+    <main class="bg-white rounded-xl shadow p-6">
+
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Apps für diesen Tenant</h2>
+        <% if (!canEdit) { %>
+          <span class="text-xs text-gray-500">Nur Admin kann Apps aktivieren/deaktivieren.</span>
+        <% } %>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="text-left text-gray-600 border-b">
+              <th class="py-2 pr-4">App</th>
+              <th class="py-2 pr-4">Label</th>
+              <th class="py-2 pr-4">Status</th>
+              <th class="py-2 pr-4 text-right">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% apps.forEach(app => { %>
+              <tr class="border-b">
+                <td class="py-3 pr-4 font-mono"><%= app.name %></td>
+                <td class="py-3 pr-4"><%= app.label || app.name %></td>
+                <td class="py-3 pr-4">
+                  <% if (app.enabled) { %>
+                    <span class="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-700 text-xs">enabled</span>
+                  <% } else { %>
+                    <span class="inline-flex items-center px-2 py-1 rounded bg-gray-100 text-gray-600 text-xs">disabled</span>
+                  <% } %>
+                </td>
+                <td class="py-3 pr-4 text-right">
+                  <% if (canEdit) { %>
+                    <% if (app.enabled) { %>
+                      <form method="post" action="/tenant/<%= encodeURIComponent(tenantName) %>/apps/<%= encodeURIComponent(app.name) %>/disable" class="inline">
+                        <button class="px-3 py-1 rounded bg-gray-200 hover:bg-gray-300 text-xs">Disable</button>
+                      </form>
+                    <% } else { %>
+                      <form method="post" action="/tenant/<%= encodeURIComponent(tenantName) %>/apps/<%= encodeURIComponent(app.name) %>/enable" class="inline">
+                        <button class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs">Enable</button>
+                      </form>
+                    <% } %>
+                  <% } else { %>
+                    <span class="text-xs text-gray-400">—</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-xs text-gray-500 mt-4">
+        MVP: Apps sind pro Tenant in <code class="font-mono">tenant_<%= tenantName %>.apps</code> gespeichert.
+        In B3 ziehen wir das in ein Layout-Dropdown, damit Navigation automatisch wird.
+      </p>
+
+    </main>
+  </div>
+</body>
+</html>

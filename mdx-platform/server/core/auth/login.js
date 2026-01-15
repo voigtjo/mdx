@@ -45,7 +45,8 @@ export function registerLoginRoutes(app) {
       tenantId: DEFAULT_TENANT
     };
 
-    return reply.redirect("/mdx");
+    return reply.redirect(`/tenant/${encodeURIComponent(DEFAULT_TENANT)}/dashboard`);
+
   });
 
   app.get("/logout", async (req, reply) => {
