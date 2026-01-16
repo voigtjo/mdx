@@ -63,11 +63,16 @@ export function registerUserRoutes(app) {
     const users = await getUsersForTenant(tenantId);
 
     return reply.view("users/index.ejs", {
+      title: "Users",
+      activeSection: "tenant",
+      currentApp: null,
+
       user: admin,
       tenantId,
       users,
       createdUser: null
     });
+
   });
 
   // -------------------------------------------------------
@@ -92,11 +97,16 @@ export function registerUserRoutes(app) {
     const users = await getUsersForTenant(tenantId);
 
     return reply.view("users/index.ejs", {
+      title: "Users",
+      activeSection: "tenant",
+      currentApp: null,
+
       user: admin,
       tenantId,
       users,
       createdUser
     });
+
   });
 
   // -------------------------------------------------------

@@ -1,0 +1,194 @@
+<div class="max-w-6xl mx-auto py-10">
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900">Webhooks</h1>
+    <p class="text-sm text-gray-600 mt-1">
+      Webhooks senden Ereignisse (Events) aus der Plattform an externe Systeme. In diesem MVP werden Deliveries aktuell in eine Queue geschrieben (status: <code class="px-1 py-0.5 bg-gray-100 rounded">queued</code>).
+    </p>
+  </div>
+
+  <% if (typeof error !== "undefined" && error) { %>
+    <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-sm text-red-800">
+      <div class="font-semibold mb-1">Fehler</div>
+      <div><%= error %></div>
+    </div>
+  <% } %>
+
+  <% if (typeof created !== "undefined" && created) { %>
+    <div class="mb-6 p-4 rounded-lg border border-green-200 bg-green-50 text-sm text-green-800">
+      <div class="font-semibold mb-1">Webhook angelegt</div>
+      <div><%= created.name %> – <code class="px-1 py-0.5 bg-green-100 rounded"><%= created.url %></code></div>
+    </div>
+  <% } %>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Create Form -->
+    <section class="lg:col-span-1 bg-white rounded-xl shadow p-6">
+      <h2 class="text-lg font-semibold text-gray-900 mb-4">Neuen Webhook anlegen</h2>
+
+      <form method="POST" action="">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+            <input
+              name="name"
+              type="text"
+              placeholder="z.B. CRM Sync"
+              class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <p class="text-xs text-gray-500 mt-1">Optional – wenn leer, wird die URL als Name genutzt.</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Target URL *</label>
+            <input
+              name="url"
+              type="url"
+              required
+              placeholder="https://example.com/webhook"
+              class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Events</label>
+            <input
+              name="events"
+              type="text"
+              placeholder="submission.submitted, workflow.transitioned oder *"
+              class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <p class="text-xs text-gray-500 mt-1">
+              Komma-separiert oder <code class="px-1 py-0.5 bg-gray-100 rounded">*</code> für alle Events.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Secret (optional)</label>
+            <input
+              name="secret"
+              type="text"
+              placeholder="wird zur Signatur genutzt"
+              class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          <div class="flex items-center gap-2">
+            <input id="isActive" name="isActive" type="checkbox" checked class="rounded border-gray-300" />
+            <label for="isActive" class="text-sm text-gray-700">Aktiv</label>
+          </div>
+
+          <button
+            type="submit"
+            class="w-full inline-flex justify-center items-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+          >
+            Webhook speichern
+          </button>
+
+          <div class="text-xs text-gray-500">
+            JSON-Endpunkte:
+            <div class="mt-1">
+              <a class="text-blue-700 hover:underline" href="/tenant/<%= encodeURIComponent(tenantId) %>/admin/webhooks">/admin/webhooks</a>
+              ·
+              <a class="text-blue-700 hover:underline" href="/tenant/<%= encodeURIComponent(tenantId) %>/admin/webhooks/deliveries">/admin/webhooks/deliveries</a>
+            </div>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- Webhook List -->
+    <section class="lg:col-span-2 bg-white rounded-xl shadow p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900">Registrierte Webhooks</h2>
+        <span class="text-sm text-gray-500"><%= (hooks || []).length %> Eintrag(e)</span>
+      </div>
+
+      <% if (!hooks || hooks.length === 0) { %>
+        <p class="text-sm text-gray-600">Noch keine Webhooks registriert.</p>
+      <% } else { %>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead>
+              <tr class="text-left text-gray-500 border-b">
+                <th class="py-2 pr-4">Name</th>
+                <th class="py-2 pr-4">URL</th>
+                <th class="py-2 pr-4">Events</th>
+                <th class="py-2 pr-4">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% hooks.forEach(function(h) { %>
+                <tr class="border-b">
+                  <td class="py-2 pr-4 font-medium text-gray-900"><%= h.name || "(ohne Name)" %></td>
+                  <td class="py-2 pr-4">
+                    <code class="px-2 py-1 bg-gray-50 border rounded"><%= h.url %></code>
+                  </td>
+                  <td class="py-2 pr-4 text-gray-700">
+                    <% if (Array.isArray(h.events)) { %>
+                      <%= h.events.join(", ") %>
+                    <% } else { %>
+                      <%= h.events %>
+                    <% } %>
+                  </td>
+                  <td class="py-2 pr-4">
+                    <% if (h.isActive) { %>
+                      <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">active</span>
+                    <% } else { %>
+                      <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700">inactive</span>
+                    <% } %>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+
+      <!-- Deliveries Preview -->
+      <div class="mt-8">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-md font-semibold text-gray-900">Letzte Deliveries</h3>
+          <a class="text-sm text-blue-700 hover:underline"
+             href="/tenant/<%= encodeURIComponent(tenantId) %>/admin/webhooks/deliveries">
+            JSON ansehen
+          </a>
+        </div>
+
+        <% if (!deliveries || deliveries.length === 0) { %>
+          <p class="text-sm text-gray-600">Noch keine Deliveries vorhanden. (Webhook registrieren + Event auslösen)</p>
+        <% } else { %>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead>
+                <tr class="text-left text-gray-500 border-b">
+                  <th class="py-2 pr-4">Zeit</th>
+                  <th class="py-2 pr-4">Event</th>
+                  <th class="py-2 pr-4">URL</th>
+                  <th class="py-2 pr-4">Status</th>
+                  <th class="py-2 pr-4">Attempts</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% deliveries.forEach(function(d) { %>
+                  <tr class="border-b">
+                    <td class="py-2 pr-4 text-gray-700"><%= (d.createdAt ? new Date(d.createdAt).toLocaleString() : "") %></td>
+                    <td class="py-2 pr-4 font-mono text-gray-800"><%= d.eventName %></td>
+                    <td class="py-2 pr-4"><code class="px-2 py-1 bg-gray-50 border rounded"><%= d.url %></code></td>
+                    <td class="py-2 pr-4">
+                      <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800"><%= d.status %></span>
+                    </td>
+                    <td class="py-2 pr-4 text-gray-700"><%= d.attempts %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } %>
+      </div>
+    </section>
+  </div>
+
+  <div class="mt-10 text-xs text-gray-500">
+    Tipp: Zum Testen kannst du in MDX ein Formular submitten. Das erzeugt ein Event <code class="px-1 py-0.5 bg-gray-100 rounded">submission.submitted</code>.
+  </div>
+</div>

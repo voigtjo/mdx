@@ -14,20 +14,45 @@ const __dirname = path.dirname(__filename);
 // Achtung: du hast aktuell server/core/dashboard/views als View-Ordner
 const viewsRoot = path.join(__dirname, "views");
 
+// ✅ EJS root für absolute includes wie include("/partials/tenant_nav.ejs")
+const uiRoot = path.join(__dirname, "..", "ui");
+
 async function render(reply, viewName, data) {
   const fullPath = path.join(viewsRoot, viewName);
 
+  // alles, was server/index.js im preHandler setzt
+  const locals = reply?.locals || {};
+
   // tenant/apps aus locals, falls vorhanden (wird in index.js preHandler gesetzt)
-  const tenantId = reply?.locals?.tenantId || data?.tenantId || data?.user?.tenantId || "";
-  const enabledApps = reply?.locals?.enabledApps || data?.enabledApps || [];
+  const tenantId =
+    locals.tenantId ||
+    data?.tenantId ||
+    data?.user?.tenantId ||
+    "";
 
-  const html = await renderFile(fullPath, {
-    ...data,
-    tenantId,
-    enabledApps
-  });
+  const enabledApps =
+    locals.enabledApps ||
+    data?.enabledApps ||
+    [];
 
-  reply.type("text/html").send(html);
+  const html = await renderFile(
+    fullPath,
+    {
+      ...locals,
+      ...data,
+      tenantId,
+      enabledApps,
+
+      // optional konsistent (schadet nicht, hilft Navigation)
+      title: data?.title || "Dashboard",
+      activeSection: data?.activeSection || "tenant",
+      currentApp:
+        typeof data?.currentApp !== "undefined" ? data.currentApp : null
+    },
+    { root: uiRoot }
+  );
+
+  reply.type("text/html; charset=utf-8").send(html);
 }
 
 function requireUser(req, reply) {
@@ -70,6 +95,10 @@ export async function registerDashboardRoutes(app) {
     const formCount = (forms || []).length;
 
     return render(reply, "dashboard.ejs", {
+      title: "Dashboard",
+      activeSection: "tenant",
+      currentApp: null,
+
       user,
       tenantId,
       assignedCount,

@@ -22,10 +22,16 @@ import {
 // App-Gate (B3/B4)
 import { requireTenantAppEnabled } from "../../server/core/auth/guards.js";
 
+// ✅ Core Events
+import { events } from "../../server/core/events/bus.js";
+
 const renderFile = promisify(ejs.renderFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const viewsRoot = path.join(__dirname, "views");
+
+// ✅ EJS root für absolute includes wie include("/partials/tenant_nav.ejs")
+const uiRoot = path.join(__dirname, "..", "..", "server", "core", "ui");
 
 // ------------------------------------------------------------
 // Helpers
@@ -38,16 +44,20 @@ async function render(reply, viewName, data = {}) {
   const tenantId = locals.tenantId || data?.user?.tenantId || "";
   const enabledApps = locals.enabledApps || [];
 
-  const html = await renderFile(fullPath, {
-    ...locals,     // <- wichtig: layout/partials können einfach auf locals zugreifen
-    ...data,
-    tenantId,
-    enabledApps,
-    title: data.title || "MDX Forms",
-    currentApp: data.currentApp || "mdx"
-  });
+  const html = await renderFile(
+    fullPath,
+    {
+      ...locals,
+      ...data,
+      tenantId,
+      enabledApps,
+      title: data.title || "MDX Forms",
+      currentApp: data.currentApp || "mdx"
+    },
+    { root: uiRoot }
+  );
 
-  reply.type("text/html").send(html);
+  reply.type("text/html; charset=utf-8").send(html);
 }
 
 function requireUser(req, reply) {
@@ -93,7 +103,7 @@ function resolveBaseUrl(req, opts) {
     out = out.replace(":tenantId", encodeURIComponent(String(t)));
   }
 
-  // trailing slash entfernen, damit wir überall sauber `${baseUrl}/...` bauen können
+  // trailing slash entfernen
   return out.replace(/\/+$/g, "");
 }
 
@@ -112,6 +122,34 @@ function splitMdx(mdx) {
     header: trimmed.substring(0, trimmed.indexOf("\n")),
     body: headerMatch[1] || ""
   };
+}
+
+/**
+ * ✅ Legacy-Fix: @form action normalisieren
+ * Problem: alte Docs enthalten action="/mdx/forms/:slug/submit"
+ * Lösung: beim Rendern korrigieren auf tenant-scoped Action.
+ */
+function normalizeFormAction(mdx, desiredAction) {
+  if (!mdx) return mdx;
+
+  // 1) Suche die erste Zeile, die mit "@form" beginnt
+  const m = mdx.match(/^@form[^\n]*$/m);
+  if (!m) return mdx;
+
+  const formLine = m[0];
+
+  let newFormLine = formLine;
+
+  if (formLine.includes('action="')) {
+    // action ersetzen
+    newFormLine = formLine.replace(/action="[^"]*"/, `action="${desiredAction}"`);
+  } else {
+    // action anhängen (sauber mit Leerzeichen)
+    newFormLine = `${formLine} action="${desiredAction}"`;
+  }
+
+  // 2) Ersetze exakt diese Form-Zeile im MDX
+  return mdx.replace(formLine, newFormLine);
 }
 
 // ------------------------------------------------------------
@@ -261,7 +299,11 @@ ${footer}
     const doc = await getDoc(user.tenantId, slug);
     if (!doc) return reply.code(404).send("MDX-Dokument nicht gefunden");
 
-    const formHtml = mdxToHtmx(doc.mdx);
+    // ✅ Legacy-Fix: action immer tenant-scoped setzen
+    const desiredAction = `${baseUrl}/forms/${encodeURIComponent(slug)}/submit`;
+    const fixedMdx = normalizeFormAction(doc.mdx || "", desiredAction);
+
+    const formHtml = mdxToHtmx(fixedMdx);
 
     let users = [];
     if (doc.type === "user") {
@@ -269,7 +311,7 @@ ${footer}
     }
 
     return render(reply, "form.ejs", {
-      title: "MDX Forms",
+      title: "Kundenanfrage Formular",
       currentApp: "mdx",
       user,
       doc,
@@ -292,11 +334,26 @@ ${footer}
 
     await saveSubmission(user.tenantId, slug, body);
 
-    reply.type("text/html");
+    // ✅ Core Event (Audit + Webhook-Queue im Core)
+    await events.emit(
+      "submission.submitted",
+      {
+        appId: "mdx",
+        formSlug: slug,
+        data: body
+      },
+      {
+        tenantId: user.tenantId,
+        user,
+        source: "apps/mdx"
+      }
+    );
+
+    reply.type("text/html; charset=utf-8");
     return `
 <div class="mt-4 p-4 bg-green-100 border border-green-300 rounded-lg text-sm font-mono">
   <div class="font-semibold mb-2">Formular empfangen (gespeichert):</div>
-  <pre>${JSON.stringify(body, null, 2)}</pre>
+  <pre>${escapeHtml(JSON.stringify(body, null, 2))}</pre>
 </div>`;
   });
 
@@ -377,4 +434,16 @@ ${footer}
 export function register(app, opts, done) {
   registerMdxRoutes(app, opts || {});
   if (typeof done === "function") done();
+}
+
+// ------------------------------------------------------------
+// Utils
+// ------------------------------------------------------------
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }

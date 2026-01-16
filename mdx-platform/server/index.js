@@ -20,10 +20,15 @@ import { register as registerDashboardRoutes } from "./core/dashboard/routes.js"
 import { register as registerUserRoutes } from "./core/users/routes.js";
 import { register as registerTenantRoutes } from "./core/tenants/routes.js";
 
-// Tenant-Apps (B2) – liegt bei dir unter server/core/apps
+// Tenant-Apps – liegt bei dir unter server/core/apps
 import { register as registerTenantAppRoutes } from "./core/apps/routes.js";
-
 import { ensureDefaultApps, listEnabledTenantApps } from "./core/apps/model.js";
+
+// Core Events
+import { initCoreEventHandlers } from "./core/events/init.js";
+
+// ✅ Webhook Admin Routes (JSON)
+import { register as registerWebhookRoutes } from "./core/webhooks/routes.js";
 
 dotenv.config();
 
@@ -34,6 +39,9 @@ const app = Fastify({
   logger: true,
   ignoreTrailingSlash: true
 });
+
+// ✅ Core Event Handlers (Audit + Webhooks Queue)
+initCoreEventHandlers();
 
 /**
  * Views
@@ -112,9 +120,9 @@ app.get("/", async (req, reply) => {
 });
 
 /**
- * ✅ GLOBALS (B3):
+ * ✅ GLOBALS:
  * - ensured default apps per tenant
- * - reply.locals.enabledApps (für Layout/Nav in B4)
+ * - reply.locals.enabledApps (für Layout/Nav)
  *
  * WICHTIG: muss VOR allen Feature-Routen/Plugins stehen
  */
@@ -148,11 +156,14 @@ app.get("/dashboard", async (req, reply) => {
 });
 
 /**
- * Feature-Routen
+ * Feature-Routen (Core)
  */
-registerTenantRoutes(app);       // /tenants (superadmin)
-registerTenantAppRoutes(app);    // /tenant/:tenantId/apps etc. (je nach deinem Plugin)
-registerUserRoutes(app);         // /tenant/:tenantId/users etc. (je nach deinem Plugin)
+registerTenantRoutes(app);        // /tenants (superadmin)
+registerTenantAppRoutes(app);     // /tenant/:tenant/apps etc.
+registerUserRoutes(app);          // /tenant/:tenantId/users etc.
+
+// ✅ Webhook Admin API (JSON-only)
+registerWebhookRoutes(app);
 
 /**
  * ✅ Dashboard MUSS tenant-scoped registriert werden:

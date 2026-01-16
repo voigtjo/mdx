@@ -112,6 +112,11 @@
         <a href="<%= tenantBase %>/dashboard" class="<%= active === 'tenant' ? 'text-blue-700 font-medium' : 'text-gray-700' %> hover:underline">Dashboard</a>
         <a href="<%= tenantBase %>/users" class="<%= active === 'tenant' ? 'text-blue-700 font-medium' : 'text-gray-700' %> hover:underline">Users</a>
         <a href="<%= tenantBase %>/apps" class="<%= active === 'tenant' ? 'text-blue-700 font-medium' : 'text-gray-700' %> hover:underline">Tenant Apps</a>
+
+        <!-- Integrations -> Webhooks -->
+        <div class="w-full h-px bg-gray-100 my-2"></div>
+        <span class="text-[11px] uppercase tracking-wide text-gray-400">Integrations</span>
+        <a href="<%= tenantBase %>/integrations/webhooks" class="<%= active === 'tenant' ? 'text-blue-700 font-medium' : 'text-gray-700' %> hover:underline">Webhooks</a>
       <% } %>
     </div>
   </div>

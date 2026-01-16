@@ -16,9 +16,43 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const viewsRoot = path.join(__dirname, "views");
 
+// ✅ EJS root für absolute includes wie include("/partials/tenant_nav.ejs")
+const uiRoot = path.join(__dirname, "..", "ui");
+
 async function render(reply, viewName, data) {
   const fullPath = path.join(viewsRoot, viewName);
-  const html = await renderFile(fullPath, data);
+
+  const locals = reply?.locals || {};
+
+  const tenantId =
+    locals.tenantId ||
+    data?.tenantId ||
+    data?.tenantName ||
+    data?.user?.tenantId ||
+    "";
+
+  const enabledApps =
+    locals.enabledApps ||
+    data?.enabledApps ||
+    [];
+
+  const html = await renderFile(
+    fullPath,
+    {
+      ...locals,
+      ...data,
+      tenantId,
+      enabledApps,
+
+      // optional konsistent (schadet nicht, hilft Navigation)
+      title: data?.title || "Tenant Apps",
+      activeSection: data?.activeSection || "tenant",
+      currentApp:
+        typeof data?.currentApp !== "undefined" ? data.currentApp : null
+    },
+    { root: uiRoot }
+  );
+
   reply.type("text/html; charset=utf-8").send(html);
 }
 
@@ -60,8 +94,13 @@ export function registerTenantAppRoutes(app) {
     const apps = await listTenantApps(user.tenantId);
 
     return render(reply, "index.ejs", {
+      title: "Tenant Apps",
+      activeSection: "tenant",
+      currentApp: null,
+
       user,
       tenantName,
+      tenantId: tenantName, // <- für Templates: tenantId verfügbar
       apps,
       canEdit: isTenantAdmin(user)
     });
