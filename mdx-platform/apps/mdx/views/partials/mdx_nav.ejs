@@ -1,0 +1,53 @@
+<%
+  // Erwartet:
+  // - baseUrl (z.B. /tenant/demo/app/mdx)
+  // - doc (optional) { slug, title }
+  // - slug (optional)
+  // - current (optional): "index"|"form"|"edit"|"submissions"|"tasks"
+  const _base = (typeof baseUrl !== "undefined" && baseUrl) ? baseUrl : "";
+  const _doc = (typeof doc !== "undefined" && doc) ? doc : null;
+  const _slug = (typeof slug !== "undefined" && slug) ? slug : (_doc && _doc.slug ? _doc.slug : "");
+  const _current = (typeof current !== "undefined" && current) ? current : "";
+  const _title = (_doc && _doc.title) ? _doc.title : (_slug ? _slug : "MDX Forms");
+%>
+
+<div class="mb-6">
+  <div class="flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <a href="<%= _base %>/" class="text-sm text-gray-600 hover:underline">
+        ← MDX Forms
+      </a>
+      <span class="text-xs text-gray-300">/</span>
+      <span class="text-sm font-medium text-gray-900"><%= _title %></span>
+    </div>
+
+    <div class="flex flex-wrap gap-2 text-sm">
+      <a
+        href="<%= _base %>/"
+        class="px-3 py-1.5 rounded border <%= _current === 'index' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50' %>"
+      >Übersicht</a>
+
+      <a
+        href="<%= _base %>/tasks"
+        class="px-3 py-1.5 rounded border <%= _current === 'tasks' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50' %>"
+      >Tasks</a>
+
+      <% if (_slug) { %>
+        <a
+          href="<%= _base %>/forms/<%= encodeURIComponent(_slug) %>"
+          class="px-3 py-1.5 rounded border <%= _current === 'form' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50' %>"
+        >Formular</a>
+
+        <a
+          href="<%= _base %>/forms/<%= encodeURIComponent(_slug) %>/submissions"
+          class="px-3 py-1.5 rounded border <%= _current === 'submissions' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50' %>"
+        >Eingänge</a>
+
+        <a
+          href="<%= _base %>/edit/<%= encodeURIComponent(_slug) %>"
+          class="px-3 py-1.5 rounded border <%= _current === 'edit' ? 'border-blue-600 text-blue-700 bg-blue-50' : 'border-gray-300 text-gray-700 hover:bg-gray-50' %>"
+        >Bearbeiten</a>
+      <% } %>
+    </div>
+  </div>
+</div>

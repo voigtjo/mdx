@@ -1,0 +1,27 @@
+<div class="max-w-6xl mx-auto py-10">
+  <h2 class="text-xl font-semibold mb-2">RBAC</h2>
+  <p class="text-sm text-gray-500 mb-6">
+    Rollen (pro Formular) bündeln Rights. Gruppen werden Rollen zugewiesen (Bindings).
+    Wähle ein Formular, um Rollen und Bindings zu verwalten.
+  </p>
+
+  <div class="bg-white rounded-xl shadow p-6">
+    <h3 class="font-semibold mb-3">Formulare</h3>
+
+    <% if (!docs || docs.length === 0) { %>
+      <p class="text-sm text-gray-500">Keine MDX-Formulare vorhanden.</p>
+    <% } else { %>
+      <div class="space-y-2">
+        <% docs.forEach(d => { %>
+          <a
+            class="block rounded-lg border border-gray-200 p-3 hover:bg-gray-50"
+            href="/tenant/<%= encodeURIComponent(tenantId) %>/rbac/forms/<%= encodeURIComponent(d.slug) %>"
+          >
+            <div class="font-medium"><%= d.title || d.slug %></div>
+            <div class="text-xs text-gray-500 font-mono"><%= d.slug %></div>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </div>
+</div>

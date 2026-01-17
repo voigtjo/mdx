@@ -12,6 +12,9 @@ import dotenv from "dotenv";
 
 import { registerLoginRoutes } from "./core/auth/login.js";
 
+// ✅ Event Bus (für Workflow-Init etc.)
+import { events } from "./core/events/bus.js";
+
 // MDX-App (als Fastify-Plugin)
 import { register as registerMdxRoutes } from "../apps/mdx/routes.js";
 
@@ -20,7 +23,7 @@ import { register as registerDashboardRoutes } from "./core/dashboard/routes.js"
 import { register as registerUserRoutes } from "./core/users/routes.js";
 import { register as registerTenantRoutes } from "./core/tenants/routes.js";
 
-// Tenant-Apps – liegt bei dir unter server/core/apps
+// Tenant-Apps
 import { register as registerTenantAppRoutes } from "./core/apps/routes.js";
 import { ensureDefaultApps, listEnabledTenantApps } from "./core/apps/model.js";
 
@@ -29,6 +32,15 @@ import { initCoreEventHandlers } from "./core/events/init.js";
 
 // ✅ Webhook Admin Routes (JSON)
 import { register as registerWebhookRoutes } from "./core/webhooks/routes.js";
+
+import { register as registerGroupRoutes } from "./core/groups/routes.js";
+import { register as registerRbacRoutes } from "./core/rbac/routes.js";
+
+// ✅ Form Assignments (B7)
+import { register as registerFormAssignmentsRoutes } from "./core/form_assignments/routes.js";
+
+// (optional – nur wenn Datei existiert/du nutzt es bereits)
+import { registerWorkflowEventHandlers } from "./core/workflows/init.js";
 
 dotenv.config();
 
@@ -78,11 +90,19 @@ app.addContentTypeParser("*", (req, payload, done) => {
         const body = data ? JSON.parse(data) : {};
         done(null, body);
       } else if (ct.includes("application/x-www-form-urlencoded")) {
+        // ✅ FIX: Multi-Keys (checkbox groups) als Array behandeln
         const params = new URLSearchParams(data);
         const body = {};
+
         for (const [key, value] of params.entries()) {
-          body[key] = value;
+          if (Object.prototype.hasOwnProperty.call(body, key)) {
+            if (Array.isArray(body[key])) body[key].push(value);
+            else body[key] = [body[key], value];
+          } else {
+            body[key] = value;
+          }
         }
+
         done(null, body);
       } else {
         done(null, data);
@@ -147,7 +167,6 @@ registerLoginRoutes(app);
 
 /**
  * ✅ Legacy /dashboard -> tenant-scoped Dashboard
- * (damit alte Links weiterhin funktionieren)
  */
 app.get("/dashboard", async (req, reply) => {
   if (!req.session?.user) return reply.redirect("/login");
@@ -159,11 +178,19 @@ app.get("/dashboard", async (req, reply) => {
  * Feature-Routen (Core)
  */
 registerTenantRoutes(app);        // /tenants (superadmin)
-registerTenantAppRoutes(app);     // /tenant/:tenant/apps etc.
+registerTenantAppRoutes(app);     // /tenant/:tenantId/apps etc.
 registerUserRoutes(app);          // /tenant/:tenantId/users etc.
 
 // ✅ Webhook Admin API (JSON-only)
 registerWebhookRoutes(app);
+
+// ✅ Groups / RBAC / Assignments
+registerGroupRoutes(app);                 // /tenant/:tenantId/groups
+registerRbacRoutes(app);                  // /tenant/:tenantId/rbac/...
+registerFormAssignmentsRoutes(app);       // /tenant/:tenantId/forms/assignments
+
+// ✅ (optional) Workflow event handlers (falls vorhanden)
+registerWorkflowEventHandlers(events);
 
 /**
  * ✅ Dashboard MUSS tenant-scoped registriert werden:

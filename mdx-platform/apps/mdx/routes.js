@@ -25,6 +25,12 @@ import { requireTenantAppEnabled } from "../../server/core/auth/guards.js";
 // ✅ Core Events
 import { events } from "../../server/core/events/bus.js";
 
+// ✅ RBAC Guard
+import { canUserPerformFormAction } from "../../server/core/rbac/service.js";
+
+// ✅ Assignments Guard (B7)
+import { isUserAllowedByAssignments } from "../../server/core/form_assignments/service.js";
+
 const renderFile = promisify(ejs.renderFile);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -68,6 +74,34 @@ function requireUser(req, reply) {
   return req.session.user;
 }
 
+// Tenant Admin (Bootstrap / Dev)
+function hasRole(user, name) {
+  const roles = user?.roles || [];
+  if (!Array.isArray(roles)) return false;
+  return roles.includes(name);
+}
+
+function isTenantAdmin(user) {
+  return (
+    hasRole(user, "admin") ||
+    hasRole(user, "tenant_admin") ||
+    hasRole(user, "superadmin")
+  );
+}
+
+function requireTenantAdmin(req, reply, user) {
+  if (!isTenantAdmin(user)) {
+    reply.code(403);
+    return render(reply, "forbidden.ejs", {
+      title: "Forbidden",
+      currentApp: "mdx",
+      user,
+      message: "Adminrechte erforderlich."
+    });
+  }
+  return true;
+}
+
 /**
  * Optionaler Tenant-Schutz:
  * Wenn Route /tenant/:tenantId/... ist, dann muss req.params.tenantId zum Session-Tenant passen.
@@ -85,6 +119,57 @@ function requireTenantMatch(req, reply, user) {
     reply.code(403).send("Forbidden – Tenant mismatch");
     return false;
   }
+  return true;
+}
+
+// ✅ Assignments Guard (B7)
+async function requireAssignmentsAccess(req, reply, user, formSlug) {
+  // Admin soll sich nicht aussperren können
+  if (isTenantAdmin(user)) return true;
+
+  const tenantId = user?.tenantId;
+  if (!tenantId) {
+    reply.code(403).send("Forbidden – missing tenant");
+    return false;
+  }
+
+  const ok = await isUserAllowedByAssignments(tenantId, user, {
+    appId: "mdx",
+    formSlug
+  });
+
+  if (!ok) {
+    reply.code(403);
+    return render(reply, "forbidden.ejs", {
+      title: "Forbidden",
+      currentApp: "mdx",
+      user,
+      message: `Kein Zugriff: Formular "${formSlug}" ist deiner Gruppe nicht zugewiesen.`
+    });
+  }
+
+  return true;
+}
+
+// ✅ Form RBAC Guard (Runtime-Funktionen)
+async function requireFormPermission(req, reply, user, action, formSlug) {
+  const tenantId = user?.tenantId;
+  if (!tenantId) {
+    reply.code(403).send("Forbidden – missing tenant");
+    return false;
+  }
+
+  const ok = await canUserPerformFormAction(tenantId, user, formSlug, action);
+  if (!ok) {
+    reply.code(403);
+    return render(reply, "forbidden.ejs", {
+      title: "Forbidden",
+      currentApp: "mdx",
+      user,
+      message: `Kein Zugriff: ${action} für Formular "${formSlug}".`
+    });
+  }
+
   return true;
 }
 
@@ -111,7 +196,7 @@ function resolveBaseUrl(req, opts) {
 function splitMdx(mdx) {
   if (!mdx) return { header: "", body: "" };
 
-  const trimmed = mdx.trim();
+  const trimmed = String(mdx).trim();
   const headerMatch = trimmed.match(/^@form[^\n]*\n([\s\S]*?)\n@endform\s*$/);
 
   if (!headerMatch) {
@@ -133,23 +218,20 @@ function normalizeFormAction(mdx, desiredAction) {
   if (!mdx) return mdx;
 
   // 1) Suche die erste Zeile, die mit "@form" beginnt
-  const m = mdx.match(/^@form[^\n]*$/m);
+  const m = String(mdx).match(/^@form[^\n]*$/m);
   if (!m) return mdx;
 
   const formLine = m[0];
-
   let newFormLine = formLine;
 
   if (formLine.includes('action="')) {
-    // action ersetzen
     newFormLine = formLine.replace(/action="[^"]*"/, `action="${desiredAction}"`);
   } else {
-    // action anhängen (sauber mit Leerzeichen)
     newFormLine = `${formLine} action="${desiredAction}"`;
   }
 
   // 2) Ersetze exakt diese Form-Zeile im MDX
-  return mdx.replace(formLine, newFormLine);
+  return String(mdx).replace(formLine, newFormLine);
 }
 
 // ------------------------------------------------------------
@@ -163,7 +245,7 @@ export function registerMdxRoutes(app, opts = {}) {
   });
 
   // ----------------------------------------------------------
-  // Übersicht
+  // Übersicht (MVP: nur eingeloggt)
   // ----------------------------------------------------------
   app.get("/", async (req, reply) => {
     const user = requireUser(req, reply);
@@ -171,7 +253,22 @@ export function registerMdxRoutes(app, opts = {}) {
     if (!requireTenantMatch(req, reply, user)) return;
 
     const baseUrl = resolveBaseUrl(req, opts);
-    const docs = await listDocs(user.tenantId);
+    let docs = await listDocs(user.tenantId);
+
+    // ✅ B7: Nicht-Admins sehen nur "erlaubte" Forms (Assignments)
+    if (!isTenantAdmin(user) && Array.isArray(docs) && docs.length > 0) {
+      const checks = await Promise.all(
+        docs.map(async d => {
+          const slug = d?.slug;
+          if (!slug) return false;
+          return isUserAllowedByAssignments(user.tenantId, user, {
+            appId: "mdx",
+            formSlug: slug
+          });
+        })
+      );
+      docs = docs.filter((_, idx) => checks[idx]);
+    }
 
     return render(reply, "index.ejs", {
       title: "MDX Forms",
@@ -183,17 +280,21 @@ export function registerMdxRoutes(app, opts = {}) {
   });
 
   // ----------------------------------------------------------
-  // Formular bearbeiten / neu anlegen
+  // Formular bearbeiten / neu anlegen (B6.2: Tenant-Admin only)
   // ----------------------------------------------------------
   app.get("/edit/:slug?", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
     if (!requireTenantMatch(req, reply, user)) return;
 
+    // ✅ Bootstrap/Dev: Design-Funktionen vorerst nur Admin
+    if (!requireTenantAdmin(req, reply, user)) return;
+
     const baseUrl = resolveBaseUrl(req, opts);
 
-    const slugParam = req.params.slug || "";
+    const slugParam = (req.params.slug || "").trim();
     let doc = slugParam ? await getDoc(user.tenantId, slugParam) : null;
+
     const allGroups = await listGroups(user.tenantId);
 
     let mdxBody = "";
@@ -231,21 +332,29 @@ export function registerMdxRoutes(app, opts = {}) {
   });
 
   // ----------------------------------------------------------
-  // Formular speichern
+  // Formular speichern (B6.2: Tenant-Admin only)
   // ----------------------------------------------------------
   app.post("/save", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
     if (!requireTenantMatch(req, reply, user)) return;
 
+    // ✅ Bootstrap/Dev: Design-Funktionen vorerst nur Admin
+    if (!requireTenantAdmin(req, reply, user)) return;
+
     const baseUrl = resolveBaseUrl(req, opts);
 
     let { slug, title, type, uniqueFieldKey } = req.body || {};
-    const mdxBodyRaw = (req.body.mdxBody ?? req.body.mdx ?? "").toString();
+    slug = (slug || "").toString().trim();
+    title = (title || "").toString().trim();
+    type = (type || "generic").toString().trim();
+    uniqueFieldKey = (uniqueFieldKey || "").toString();
+
+    const mdxBodyRaw = (req.body?.mdxBody ?? req.body?.mdx ?? "").toString();
 
     let groupIds = [];
-    if (Array.isArray(req.body.groupIds)) groupIds = req.body.groupIds;
-    else if (req.body.groupIds) groupIds = [req.body.groupIds];
+    if (Array.isArray(req.body?.groupIds)) groupIds = req.body.groupIds;
+    else if (req.body?.groupIds) groupIds = [req.body.groupIds];
 
     if (!slug || !title || !mdxBodyRaw.trim()) {
       return reply.code(400).send("slug, title und mdxBody sind erforderlich");
@@ -264,7 +373,7 @@ export function registerMdxRoutes(app, opts = {}) {
     const keyAttr = keyForHeader ? ` key="${keyForHeader}"` : "";
 
     // action muss zum Prefix passen
-    const action = `${baseUrl}/forms/${slug}/submit`;
+    const action = `${baseUrl}/forms/${encodeURIComponent(slug)}/submit`;
     const header = `@form action="${action}"${keyAttr}`;
     const footer = "@endform";
 
@@ -286,7 +395,7 @@ ${footer}
   });
 
   // ----------------------------------------------------------
-  // Formular anzeigen (MDX -> HTMX)
+  // Formular anzeigen (Assignments + RBAC: form.view)
   // ----------------------------------------------------------
   app.get("/forms/:slug", async (req, reply) => {
     const user = requireUser(req, reply);
@@ -294,8 +403,16 @@ ${footer}
     if (!requireTenantMatch(req, reply, user)) return;
 
     const baseUrl = resolveBaseUrl(req, opts);
+    const slug = (req.params.slug || "").trim();
 
-    const slug = req.params.slug;
+    // ✅ B7: Assignments
+    const okA = await requireAssignmentsAccess(req, reply, user, slug);
+    if (!okA) return;
+
+    // ✅ RBAC
+    const okR = await requireFormPermission(req, reply, user, "form.view", slug);
+    if (!okR) return;
+
     const doc = await getDoc(user.tenantId, slug);
     if (!doc) return reply.code(404).send("MDX-Dokument nicht gefunden");
 
@@ -311,7 +428,7 @@ ${footer}
     }
 
     return render(reply, "form.ejs", {
-      title: "Kundenanfrage Formular",
+      title: doc.title || "MDX Formular",
       currentApp: "mdx",
       user,
       doc,
@@ -322,17 +439,31 @@ ${footer}
   });
 
   // ----------------------------------------------------------
-  // Formular-Submit
+  // Formular-Submit (Assignments + RBAC: form.submit)
   // ----------------------------------------------------------
   app.post("/forms/:slug/submit", async (req, reply) => {
     const user = requireUser(req, reply);
     if (!user) return;
     if (!requireTenantMatch(req, reply, user)) return;
 
-    const slug = req.params.slug;
+    const baseUrl = resolveBaseUrl(req, opts);
+    const slug = (req.params.slug || "").trim();
+
+    // ✅ B7: Assignments
+    const okA = await requireAssignmentsAccess(req, reply, user, slug);
+    if (!okA) return;
+
+    // ✅ RBAC
+    const okR = await requireFormPermission(req, reply, user, "form.submit", slug);
+    if (!okR) return;
+
     const body = req.body || {};
 
-    await saveSubmission(user.tenantId, slug, body);
+    // ✅ robust: model.saveSubmission returns insertedId (ObjectId or null)
+    const insertedId = await saveSubmission(user.tenantId, slug, body);
+
+    // ✅ submissionId für Audit/Webhooks am stabilsten als String
+    const submissionId = insertedId ? String(insertedId) : null;
 
     // ✅ Core Event (Audit + Webhook-Queue im Core)
     await events.emit(
@@ -340,6 +471,7 @@ ${footer}
       {
         appId: "mdx",
         formSlug: slug,
+        submissionId,
         data: body
       },
       {
@@ -349,16 +481,21 @@ ${footer}
       }
     );
 
+    // UX (MVP): inline Response
     reply.type("text/html; charset=utf-8");
     return `
 <div class="mt-4 p-4 bg-green-100 border border-green-300 rounded-lg text-sm font-mono">
   <div class="font-semibold mb-2">Formular empfangen (gespeichert):</div>
+  <div class="text-xs text-green-900 mb-2">submissionId: ${escapeHtml(submissionId || "(null)")}</div>
   <pre>${escapeHtml(JSON.stringify(body, null, 2))}</pre>
+  <div class="mt-3 text-xs">
+    <a class="underline" href="${escapeHtml(`${baseUrl}/forms/${encodeURIComponent(slug)}/submissions`)}">Eingänge ansehen</a>
+  </div>
 </div>`;
   });
 
   // ----------------------------------------------------------
-  // Submissions
+  // Submissions (Assignments + RBAC: submission.view)
   // ----------------------------------------------------------
   app.get("/forms/:slug/submissions", async (req, reply) => {
     const user = requireUser(req, reply);
@@ -366,8 +503,16 @@ ${footer}
     if (!requireTenantMatch(req, reply, user)) return;
 
     const baseUrl = resolveBaseUrl(req, opts);
+    const slug = (req.params.slug || "").trim();
 
-    const slug = req.params.slug;
+    // ✅ B7: Assignments
+    const okA = await requireAssignmentsAccess(req, reply, user, slug);
+    if (!okA) return;
+
+    // ✅ RBAC
+    const okR = await requireFormPermission(req, reply, user, "submission.view", slug);
+    if (!okR) return;
+
     const submissions = await listSubmissions(user.tenantId, slug);
 
     return render(reply, "submissions.ejs", {
@@ -381,7 +526,7 @@ ${footer}
   });
 
   // ----------------------------------------------------------
-  // Tasks
+  // Tasks (B6.2: nur eingeloggt, kein RBAC)
   // ----------------------------------------------------------
   app.get("/tasks", async (req, reply) => {
     const user = requireUser(req, reply);
@@ -390,10 +535,7 @@ ${footer}
 
     const baseUrl = resolveBaseUrl(req, opts);
 
-    const { assignedTasks, openTasks } = await getTasksForUser(
-      user.tenantId,
-      user
-    );
+    const { assignedTasks, openTasks } = await getTasksForUser(user.tenantId, user);
 
     return render(reply, "tasks.ejs", {
       title: "MDX Forms",
@@ -411,10 +553,10 @@ ${footer}
     if (!requireTenantMatch(req, reply, user)) return;
 
     const baseUrl = resolveBaseUrl(req, opts);
-
     const { id } = req.params;
+
     await claimTask(user.tenantId, id, user);
-    reply.redirect(`${baseUrl}/tasks`);
+    return reply.redirect(`${baseUrl}/tasks`);
   });
 
   app.post("/tasks/:id/complete", async (req, reply) => {
@@ -423,10 +565,10 @@ ${footer}
     if (!requireTenantMatch(req, reply, user)) return;
 
     const baseUrl = resolveBaseUrl(req, opts);
-
     const { id } = req.params;
+
     await completeTask(user.tenantId, id, user);
-    reply.redirect(`${baseUrl}/tasks`);
+    return reply.redirect(`${baseUrl}/tasks`);
   });
 }
 

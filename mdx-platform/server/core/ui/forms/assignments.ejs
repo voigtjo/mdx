@@ -1,0 +1,77 @@
+<div class="max-w-6xl mx-auto py-10">
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900">Form Assignments</h1>
+    <p class="text-sm text-gray-600 mt-1">
+      Mapping: <span class="font-mono">Form → Groups</span>. Wenn ein Formular Assignments hat, dürfen nur diese Groups das Formular nutzen.
+      Wenn keine Assignments vorhanden sind, ist das Formular "offen" (MVP).
+    </p>
+  </div>
+
+  <% const savedFlag = !!saved; %>
+  <% if (savedFlag) { %>
+    <div class="mb-6 p-4 rounded-lg border border-green-200 bg-green-50 text-sm text-green-900">
+      <div class="font-semibold">Gespeichert</div>
+      <div>Assignments wurden aktualisiert.</div>
+    </div>
+  <% } %>
+
+  <div class="bg-white rounded-xl shadow p-6">
+    <form method="GET" action="/tenant/<%= encodeURIComponent(tenantId) %>/forms/assignments" class="flex items-end gap-3">
+      <div class="flex-1">
+        <label class="block text-sm font-medium text-gray-700 mb-1">Formular</label>
+        <select name="formSlug" class="w-full rounded-lg border-gray-300" onchange="this.form.submit()">
+          <% (forms || []).forEach(f => { %>
+            <option value="<%= f.slug %>" <%= String(f.slug) === String(selectedSlug) ? "selected" : "" %>>
+              <%= (f.title || f.slug) %> (<%= f.slug %>)
+            </option>
+          <% }) %>
+        </select>
+      </div>
+      <noscript>
+        <button class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">Load</button>
+      </noscript>
+    </form>
+
+    <div class="mt-6 border-t pt-6">
+      <h2 class="text-lg font-semibold mb-3">Groups für dieses Formular</h2>
+
+      <% if (!selectedSlug) { %>
+        <p class="text-sm text-gray-600">Kein Formular ausgewählt.</p>
+      <% } else if (!groups || groups.length === 0) { %>
+        <p class="text-sm text-gray-600">Keine Groups vorhanden.</p>
+      <% } else { %>
+        <form method="POST" action="/tenant/<%= encodeURIComponent(tenantId) %>/forms/assignments/set" class="space-y-4">
+          <input type="hidden" name="formSlug" value="<%= selectedSlug %>" />
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <% (groups || []).forEach(g => { 
+                 const gid = String(g._id);
+                 const checked = (assignedGroupIds || []).map(String).includes(gid);
+            %>
+              <label class="flex items-start gap-3 border rounded-lg p-3 hover:bg-gray-50 cursor-pointer">
+                <input type="checkbox" name="groupIds" value="<%= gid %>" class="mt-1" <%= checked ? "checked" : "" %> />
+                <div>
+                  <div class="font-medium text-gray-900"><%= g.name %></div>
+                  <% if (g.description) { %>
+                    <div class="text-xs text-gray-500"><%= g.description %></div>
+                  <% } %>
+                  <div class="text-[11px] text-gray-400 font-mono mt-1"><%= gid %></div>
+                </div>
+              </label>
+            <% }) %>
+          </div>
+
+          <div class="flex items-center justify-between pt-2">
+            <div class="text-xs text-gray-500">
+              Tipp: Wenn du alle Häkchen entfernst, ist das Formular wieder „offen“ (keine Assignments).
+            </div>
+
+            <button class="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+              Save Assignments
+            </button>
+          </div>
+        </form>
+      <% } %>
+    </div>
+  </div>
+</div>

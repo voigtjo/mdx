@@ -1,0 +1,23 @@
+<div class="max-w-3xl mx-auto py-10">
+  <header class="mb-8">
+    <%- include("/partials/tenant_nav.ejs", {
+      title: title || "Forbidden",
+      user,
+      tenantId,
+      enabledApps,
+      currentApp: currentApp || "mdx",
+      activeSection: "apps"
+    }) %>
+  </header>
+
+  <div class="bg-white rounded-xl shadow p-6 border border-red-200">
+    <h2 class="text-xl font-semibold text-red-700 mb-2">Forbidden</h2>
+    <p class="text-sm text-gray-700">
+      <%= message || "Kein Zugriff." %>
+    </p>
+
+    <div class="mt-4">
+      <a href="javascript:history.back()" class="text-sm text-blue-700 hover:underline">Zurück</a>
+    </div>
+  </div>
+</div>

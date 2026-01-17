@@ -1,0 +1,160 @@
+<div class="max-w-6xl mx-auto py-10">
+  <div class="mb-6">
+    <h1 class="text-2xl font-semibold text-gray-900">RBAC – <span class="font-mono"><%= formSlug %></span></h1>
+    <p class="text-sm text-gray-600 mt-1">
+      Rollen (pro Formular) bündeln Rights. Gruppen werden Rollen zugewiesen (Bindings).
+    </p>
+  </div>
+
+  <% if (error) { %>
+    <div class="mb-6 p-4 rounded-lg border border-red-200 bg-red-50 text-sm text-red-800">
+      <div class="font-semibold">Fehler</div>
+      <div><%= error %></div>
+    </div>
+  <% } %>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Roles -->
+    <section class="lg:col-span-2 bg-white rounded-xl shadow p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">Rollen</h2>
+        <span class="text-sm text-gray-500"><%= (roles || []).length %> Eintrag(e)</span>
+      </div>
+
+      <% if (!roles || roles.length === 0) { %>
+        <p class="text-sm text-gray-600">Keine Rollen definiert.</p>
+      <% } else { %>
+        <div class="space-y-3">
+          <% roles.forEach(r => { %>
+            <div class="border rounded-lg p-4">
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <div class="font-semibold text-gray-900">
+                    <%= r.label %> <span class="text-xs text-gray-500">(<span class="font-mono"><%= r.roleKey %></span>)</span>
+                  </div>
+                  <div class="mt-2 text-xs text-gray-600">
+                    <div><span class="font-semibold">Rights:</span> <%= (r.rights || []).join(", ") %></div>
+                    <div class="mt-1"><span class="font-semibold">Allowed Actions:</span> <%= (r.allowedActions || []).join(", ") %></div>
+                  </div>
+                </div>
+
+                <form method="POST"
+                      action="/tenant/<%= encodeURIComponent(tenantId) %>/rbac/forms/<%= encodeURIComponent(formSlug) %>/roles/<%= encodeURIComponent(r.roleKey) %>/delete"
+                      onsubmit="return confirm('Rolle löschen? Bindings werden entfernt.');">
+                  <button class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Delete</button>
+                </form>
+              </div>
+            </div>
+          <% }) %>
+        </div>
+      <% } %>
+
+      <div class="mt-8 border-t pt-6">
+        <h3 class="text-md font-semibold mb-3">Rolle anlegen / ändern</h3>
+        <form method="POST" action="/tenant/<%= encodeURIComponent(tenantId) %>/rbac/forms/<%= encodeURIComponent(formSlug) %>/roles">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">roleKey *</label>
+              <input name="roleKey" required class="w-full rounded-lg border-gray-300" placeholder="z.B. editor" />
+              <p class="text-xs text-gray-500 mt-1">Eindeutig pro Form.</p>
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+              <input name="label" class="w-full rounded-lg border-gray-300" placeholder="z.B. Editor" />
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Rights (comma-separated)</label>
+              <input name="rights" class="w-full rounded-lg border-gray-300"
+                     placeholder="form:read, form:write, form:submit, submission:read, workflow:approve" />
+              <details class="mt-2 text-xs text-gray-600">
+                <summary class="cursor-pointer">Rights-Katalog anzeigen</summary>
+                <div class="mt-2 p-3 bg-gray-50 border rounded">
+                  <%= rightsCatalog.join(", ") %>
+                </div>
+              </details>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">Allowed Actions (comma-separated)</label>
+              <input name="allowedActions" class="w-full rounded-lg border-gray-300"
+                     placeholder="form.view, form.edit, form.save, form.submit, workflow.approve" />
+              <details class="mt-2 text-xs text-gray-600">
+                <summary class="cursor-pointer">Actions-Katalog anzeigen</summary>
+                <div class="mt-2 p-3 bg-gray-50 border rounded">
+                  <%= actionsCatalog.join(", ") %>
+                </div>
+              </details>
+            </div>
+          </div>
+
+          <button class="mt-4 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+            Save Role
+          </button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Bindings -->
+    <section class="bg-white rounded-xl shadow p-6">
+      <h2 class="text-lg font-semibold mb-4">Bindings (Group → Role)</h2>
+
+      <form method="POST" action="/tenant/<%= encodeURIComponent(tenantId) %>/rbac/forms/<%= encodeURIComponent(formSlug) %>/bindings" class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Group</label>
+          <select name="groupId" class="w-full rounded-lg border-gray-300">
+            <option value="">Bitte wählen…</option>
+            <% (groups || []).forEach(g => { %>
+              <option value="<%= String(g._id) %>"><%= g.name %></option>
+            <% }) %>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          <select name="roleKey" class="w-full rounded-lg border-gray-300">
+            <option value="">Bitte wählen…</option>
+            <% (roles || []).forEach(r => { %>
+              <option value="<%= r.roleKey %>"><%= r.label %> (<%= r.roleKey %>)</option>
+            <% }) %>
+          </select>
+        </div>
+
+        <button class="w-full px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+          Bind
+        </button>
+      </form>
+
+      <div class="mt-6">
+        <h3 class="font-semibold mb-2">Aktive Bindings</h3>
+
+        <% if (!bindings || bindings.length === 0) { %>
+          <p class="text-sm text-gray-600">Noch keine Bindings.</p>
+        <% } else { %>
+          <div class="space-y-2">
+            <% bindings.forEach(b => { %>
+              <div class="flex items-center justify-between border rounded-lg p-3">
+                <div class="text-sm">
+                  <div class="text-gray-900">
+                    GroupId: <span class="font-mono"><%= String(b.subjectId) %></span>
+                  </div>
+                  <div class="text-gray-600">
+                    Role: <span class="font-mono"><%= b.roleKey %></span>
+                  </div>
+                </div>
+
+                <form method="POST"
+                      action="/tenant/<%= encodeURIComponent(tenantId) %>/rbac/forms/<%= encodeURIComponent(formSlug) %>/bindings/<%= encodeURIComponent(String(b._id)) %>/delete">
+                  <button class="px-3 py-2 rounded-lg bg-white border text-sm hover:bg-gray-50">Unbind</button>
+                </form>
+              </div>
+            <% }) %>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">UI zeigt MVP-mäßig GroupId; Label-Mapping können wir als nächstes ergänzen.</p>
+        <% } %>
+      </div>
+    </section>
+  </div>
+
+  <div class="mt-10 text-xs text-gray-500">
+    Öffnen: <span class="font-mono">/tenant/&lt;tenantId&gt;/rbac/forms/&lt;formSlug&gt;</span>
+  </div>
+</div>
