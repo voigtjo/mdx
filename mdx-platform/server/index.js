@@ -10,6 +10,10 @@ import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 
+// ✅ Session refresh helpers
+import { ObjectId } from "mongodb";
+import { getTenantDb } from "./core/db/mongo.js";
+
 import { registerLoginRoutes } from "./core/auth/login.js";
 
 // ✅ Event Bus (für Workflow-Init etc.)
@@ -54,6 +58,24 @@ const app = Fastify({
 
 // ✅ Core Event Handlers (Audit + Webhooks Queue)
 initCoreEventHandlers();
+
+// ------------------------------------------------------------
+// Helpers (Session Refresh)
+// ------------------------------------------------------------
+function toObjectIdSafe(id) {
+  try {
+    if (!id) return null;
+    if (id instanceof ObjectId) return id;
+    return new ObjectId(String(id));
+  } catch {
+    return null;
+  }
+}
+
+function uniqueStrings(arr) {
+  const s = new Set((arr || []).map(x => String(x)).filter(Boolean));
+  return Array.from(s);
+}
 
 /**
  * Views
@@ -143,6 +165,7 @@ app.get("/", async (req, reply) => {
  * ✅ GLOBALS:
  * - ensured default apps per tenant
  * - reply.locals.enabledApps (für Layout/Nav)
+ * - ✅ Session-Refresh: groupRoles/groupIds/roles aktuell halten
  *
  * WICHTIG: muss VOR allen Feature-Routen/Plugins stehen
  */
@@ -158,6 +181,36 @@ app.addHook("preHandler", async (req, reply) => {
   reply.locals = reply.locals || {};
   reply.locals.tenantId = t;
   reply.locals.enabledApps = await listEnabledTenantApps(t);
+
+  // ✅ Session-Refresh (MVP): hole User frisch aus DB, damit groupRoles/groupIds aktuell sind
+  // (damit Non-Admin nach Rollenänderung nicht neu einloggen muss)
+  try {
+    const userId = toObjectIdSafe(user?._id || user?.id);
+    if (userId) {
+      const db = await getTenantDb(t);
+      const usersCol = db.collection("users");
+
+      const fresh = await usersCol.findOne(
+        { _id: userId },
+        { projection: { email: 1, roles: 1, groupRoles: 1 } }
+      );
+
+      if (fresh) {
+        const groupRoles = Array.isArray(fresh.groupRoles) ? fresh.groupRoles : [];
+        const groupIds = uniqueStrings(groupRoles.map(gr => gr?.groupId));
+
+        req.session.user = {
+          ...req.session.user,
+          email: fresh.email || req.session.user.email,
+          roles: Array.isArray(fresh.roles) ? fresh.roles : [],
+          groupRoles,
+          groupIds
+        };
+      }
+    }
+  } catch {
+    // MVP: bewusst still, damit Requests nicht “kaputt” gehen
+  }
 });
 
 /**

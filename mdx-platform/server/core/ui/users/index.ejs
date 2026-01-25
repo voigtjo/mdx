@@ -1,166 +1,194 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="utf-8" />
-  <title>Benutzerverwaltung</title>
-  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100">
-  <div class="max-w-5xl mx-auto py-10">
+<main class="space-y-6">
 
-
-    <main class="space-y-6">
-      <!-- Erfolgsmeldung nach Anlage -->
-      <% if (createdUser) { %>
-        <div class="bg-green-50 border border-green-300 text-sm rounded-lg px-4 py-3">
-          <div class="font-semibold mb-1">Benutzer angelegt</div>
-          <p>
-            <span class="font-mono"><%= createdUser.email %></span>
-            wurde mit Rollen
-            <% if (createdUser.roles && createdUser.roles.length) { %>
-              <code><%= createdUser.roles.join(", ") %></code>
-            <% } else { %>
-              <span class="italic text-gray-500">keine Rollen</span>
-            <% } %>
-            erstellt.
-          </p>
-          <% if (createdUser.password) { %>
-            <p class="mt-1 text-xs text-gray-600">
-              Initiales Passwort:
-              <code class="font-mono"><%= createdUser.password %></code>
-              (bitte sicher weitergeben – wird nicht erneut angezeigt).
-            </p>
-          <% } %>
-        </div>
-      <% } %>
-
-      <!-- Formular: neuen Benutzer anlegen -->
-      <section class="bg-white rounded-xl shadow p-6">
-        <h2 class="text-lg font-semibold mb-4">Neuen Benutzer anlegen</h2>
-
-        <form method="post" action="/users" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-          <div class="md:col-span-2">
-            <label class="block text-gray-700 mb-1" for="email">E-Mail</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              required
-              class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono"
-              placeholder="user@example.com"
-            />
-          </div>
-
-          <div>
-            <label class="block text-gray-700 mb-1" for="password">
-              Passwort (optional)
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="text"
-              class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono"
-              placeholder="leer lassen = automatisch generiert"
-            />
-          </div>
-
-          <div>
-            <label class="block text-gray-700 mb-1" for="roles">
-              Rollen (Komma-getrennt)
-            </label>
-            <input
-              id="roles"
-              name="roles"
-              type="text"
-              class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
-              placeholder="z.B. admin,operator,editor"
-            />
-            <p class="mt-1 text-xs text-gray-500">
-              Für Admin-Zugriff z.&nbsp;B. <code>admin</code> oder
-              <code>superadmin</code>.
-            </p>
-          </div>
-
-          <div class="flex items-center mt-2">
-            <input
-              id="mustChangePassword"
-              name="mustChangePassword"
-              type="checkbox"
-              class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <label for="mustChangePassword" class="ml-2 text-xs text-gray-700">
-              Benutzer muss Passwort bei erstem Login ändern
-            </label>
-          </div>
-
-          <div class="md:col-span-2 flex justify-end mt-2">
-            <button
-              type="submit"
-              class="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
-            >
-              Benutzer anlegen
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <!-- Liste bestehender Benutzer -->
-      <section class="bg-white rounded-xl shadow p-6">
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-lg font-semibold">Benutzer im Tenant</h2>
-        </div>
-
-        <% if (!users || users.length === 0) { %>
-          <p class="text-sm text-gray-500">
-            In diesem Tenant sind noch keine Benutzer angelegt.
-          </p>
+  <% if (createdUser) { %>
+    <div class="bg-green-50 border border-green-300 text-sm rounded-lg px-4 py-3">
+      <div class="font-semibold mb-1">Benutzer angelegt</div>
+      <p>
+        <span class="font-mono"><%= createdUser.email %></span>
+        wurde mit Rollen
+        <% if (createdUser.roles && createdUser.roles.length) { %>
+          <code><%= createdUser.roles.join(", ") %></code>
         <% } else { %>
-          <div class="overflow-x-auto">
-            <table class="min-w-full text-sm">
-              <thead>
-                <tr class="border-b text-left text-gray-500 uppercase text-xs">
-                  <th class="py-2 pr-4">E-Mail</th>
-                  <th class="py-2 pr-4">Rollen</th>
-                  <th class="py-2 pr-4">Pflicht zum PW-Wechsel</th>
-                  <th class="py-2 pr-4">Angelegt</th>
-                </tr>
-              </thead>
-              <tbody>
-                <% users.forEach(u => { %>
-                  <tr class="border-b last:border-0">
-                    <td class="py-2 pr-4 font-mono"><%= u.email %></td>
-                    <td class="py-2 pr-4">
-                      <% if (u.roles && u.roles.length) { %>
-                        <%= u.roles.join(", ") %>
-                      <% } else { %>
-                        <span class="text-gray-400 italic">keine</span>
-                      <% } %>
-                    </td>
-                    <td class="py-2 pr-4">
-                      <% if (u.mustChangePassword) { %>
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs">
-                          ja
-                        </span>
-                      <% } else { %>
-                        <span class="text-xs text-gray-500">nein</span>
-                      <% } %>
-                    </td>
-                    <td class="py-2 pr-4 text-gray-500 text-xs">
-                      <% if (u.createdAt) { %>
-                        <%= new Date(u.createdAt).toLocaleString("de-DE") %>
-                      <% } else { %>
-                        –
-                      <% } %>
-                    </td>
-                  </tr>
-                <% }) %>
-              </tbody>
-            </table>
-          </div>
+          <span class="italic text-gray-500">keine Rollen</span>
         <% } %>
-      </section>
-    </main>
-  </div>
-</body>
-</html>
+        erstellt.
+      </p>
+      <% if (createdUser.password) { %>
+        <p class="mt-1 text-xs text-gray-600">
+          Initiales Passwort:
+          <code class="font-mono"><%= createdUser.password %></code>
+          (bitte sicher weitergeben – wird nicht erneut angezeigt).
+        </p>
+      <% } %>
+    </div>
+  <% } %>
+
+  <!-- Formular: neuen Benutzer anlegen -->
+  <section class="bg-white rounded-xl shadow p-6">
+    <h2 class="text-lg font-semibold mb-4">Neuen Benutzer anlegen</h2>
+
+    <form method="post" action="/tenant/<%= tenantId %>/users" class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+      <div class="md:col-span-2">
+        <label class="block text-gray-700 mb-1" for="email">E-Mail</label>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono"
+          placeholder="user@example.com"
+        />
+      </div>
+
+      <div>
+        <label class="block text-gray-700 mb-1" for="password">Passwort (optional)</label>
+        <input
+          id="password"
+          name="password"
+          type="text"
+          class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono"
+          placeholder="leer lassen = automatisch generiert"
+        />
+      </div>
+
+      <div>
+        <label class="block text-gray-700 mb-1" for="roles">Rollen (Komma-getrennt)</label>
+        <input
+          id="roles"
+          name="roles"
+          type="text"
+          class="w-full rounded-lg border-gray-300 shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          placeholder="z.B. admin,operator,editor"
+        />
+        <p class="mt-1 text-xs text-gray-500">
+          Für Admin-Zugriff z.&nbsp;B. <code>admin</code> oder <code>superadmin</code>.
+        </p>
+      </div>
+
+      <div class="flex items-center mt-2">
+        <input
+          id="mustChangePassword"
+          name="mustChangePassword"
+          type="checkbox"
+          class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+        />
+        <label for="mustChangePassword" class="ml-2 text-xs text-gray-700">
+          Benutzer muss Passwort bei erstem Login ändern
+        </label>
+      </div>
+
+      <div class="md:col-span-2 flex justify-end mt-2">
+        <button
+          type="submit"
+          class="inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700"
+        >
+          Benutzer anlegen
+        </button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Liste bestehender Benutzer -->
+  <section class="bg-white rounded-xl shadow p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold">Benutzer im Tenant</h2>
+    </div>
+
+    <% if (!users || users.length === 0) { %>
+      <p class="text-sm text-gray-500">In diesem Tenant sind noch keine Benutzer angelegt.</p>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="border-b text-left text-gray-500 uppercase text-xs">
+              <th class="py-2 pr-4">E-Mail</th>
+              <th class="py-2 pr-4">Rollen</th>
+              <th class="py-2 pr-4">Gruppenrollen</th>
+              <th class="py-2 pr-4">PW-Wechsel</th>
+              <th class="py-2 pr-4">Angelegt</th>
+              <th class="py-2 pr-0">Aktion</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% users.forEach(u => { %>
+              <% const grs = Array.isArray(u.groupRoles) ? u.groupRoles : []; %>
+              <tr class="border-b align-top" id="user-<%= String(u._id) %>">
+                <td class="py-3 pr-4 font-mono"><%= u.email %></td>
+
+                <td class="py-3 pr-4">
+                  <% if (u.roles && u.roles.length) { %>
+                    <%= u.roles.join(", ") %>
+                  <% } else { %>
+                    <span class="text-gray-400 italic">keine</span>
+                  <% } %>
+                </td>
+
+                <td class="py-3 pr-4">
+                  <% if (grs.length === 0) { %>
+                    <span class="text-gray-400 italic">keine</span>
+                  <% } else { %>
+                    <div class="text-xs text-gray-700">
+                      <span class="font-semibold"><%= grs.length %></span> Zuordnung(en)
+                    </div>
+                    <div class="mt-1 text-[11px] text-gray-500 space-y-0.5">
+                      <% grs.slice(0, 2).forEach(gr => { %>
+                        <% const g = (groups || []).find(x => String(x._id) === String(gr.groupId)); %>
+                        <div>
+                          <span class="font-semibold"><%= g ? g.name : String(gr.groupId) %></span>
+                          · <span><%= gr.role %></span>
+                        </div>
+                      <% }) %>
+                      <% if (grs.length > 2) { %>
+                        <div class="italic">… +<%= (grs.length - 2) %> weitere</div>
+                      <% } %>
+                    </div>
+                  <% } %>
+                </td>
+
+                <td class="py-3 pr-4">
+                  <% if (u.mustChangePassword) { %>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 text-xs">ja</span>
+                  <% } else { %>
+                    <span class="text-xs text-gray-500">nein</span>
+                  <% } %>
+                </td>
+
+                <td class="py-3 pr-4 text-gray-500 text-xs">
+                  <% if (u.createdAt) { %>
+                    <%= new Date(u.createdAt).toLocaleString("de-DE") %>
+                  <% } else { %>
+                    –
+                  <% } %>
+                </td>
+
+                <td class="py-3 pr-0">
+                  <button
+                    class="text-xs px-3 py-1.5 rounded-md border hover:bg-white"
+                    hx-get="/tenant/<%= tenantId %>/users/<%= String(u._id) %>/group-roles/modal"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                  >
+                    Gruppenrollen…
+                  </button>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- Modal Container -->
+  <div id="modal-root"></div>
+
+  <script>
+    function closeModal() {
+      const el = document.getElementById("modal-root");
+      if (el) el.innerHTML = "";
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeModal();
+    });
+  </script>
+</main>

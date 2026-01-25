@@ -1,10 +1,11 @@
 // server/core/users/model.js
 
 import { ObjectId } from "mongodb";
-import bcrypt from "bcryptjs"; // npm i bcryptjs
+import bcrypt from "bcryptjs";
 import { getTenantDb } from "../db/mongo.js";
 
 const USERS_COLLECTION = "users";
+const GROUPS_COLLECTION = "core_groups";
 
 // -----------------------------------------
 // Helpers
@@ -14,37 +15,52 @@ async function getUsersCollection(tenantId) {
   return db.collection(USERS_COLLECTION);
 }
 
+async function getGroupsCollection(tenantId) {
+  const db = await getTenantDb(tenantId);
+  return db.collection(GROUPS_COLLECTION);
+}
+
 function toObjectId(id) {
   if (!id) return null;
   if (id instanceof ObjectId) return id;
   try {
     return new ObjectId(id.toString());
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
 // kleines Hilfs-Password für MVP
 function generateSimplePassword(length = 12) {
-  const chars =
-    "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
   let out = "";
-  for (let i = 0; i < length; i++) {
-    out += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
+  for (let i = 0; i < length; i++) out += chars.charAt(Math.floor(Math.random() * chars.length));
   return out;
 }
 
-// -----------------------------------------
-// Public API – bestehende Funktionen
-// -----------------------------------------
+function normalizeRoles(roles) {
+  if (Array.isArray(roles)) return roles.map(r => String(r).trim()).filter(Boolean);
+  if (typeof roles === "string") return roles.split(",").map(r => r.trim()).filter(Boolean);
+  return [];
+}
 
+function normalizeGroupRoleInput({ groupId, roleKey }) {
+  const gid = toObjectId(groupId);
+  const rk = String(roleKey || "").trim();
+  if (!gid || !rk) return null;
+  return { groupId: gid, role: rk };
+}
+
+function sameOid(a, b) {
+  return String(a) === String(b);
+}
+
+// -----------------------------------------
+// Public API – Users
+// -----------------------------------------
 export async function listUsers(tenantId) {
   const col = await getUsersCollection(tenantId);
-  return col
-    .find({})
-    .sort({ email: 1 })
-    .toArray();
+  return col.find({}).sort({ email: 1 }).toArray();
 }
 
 export async function getUserById(tenantId, id) {
@@ -52,6 +68,13 @@ export async function getUserById(tenantId, id) {
   const _id = toObjectId(id);
   if (!_id) return null;
   return col.findOne({ _id });
+}
+
+export async function getUserByEmail(tenantId, email) {
+  const col = await getUsersCollection(tenantId);
+  const e = String(email || "").trim().toLowerCase();
+  if (!e) return null;
+  return col.findOne({ email: e });
 }
 
 /**
@@ -68,85 +91,69 @@ export async function upsertUser(
 ) {
   const col = await getUsersCollection(tenantId);
 
-  if (!email) {
-    throw new Error("email ist erforderlich");
-  }
+  if (!email) throw new Error("email ist erforderlich");
 
-  // Rollen immer als Array von Strings
-  const cleanRoles = Array.isArray(roles)
-    ? roles.map(r => r.toString())
-    : roles
-    ? [roles.toString()]
-    : [];
-
+  const cleanRoles = normalizeRoles(roles);
   const now = new Date();
   const passwordUpdate = {};
 
-  if (password && password.trim().length > 0) {
-    const hash = await bcrypt.hash(password.trim(), 10);
+  if (password && String(password).trim().length > 0) {
+    const hash = await bcrypt.hash(String(password).trim(), 10);
     passwordUpdate.passwordHash = hash;
   }
 
   if (id) {
     const _id = toObjectId(id);
-    if (!_id) {
-      throw new Error("Ungültige User-ID");
-    }
+    if (!_id) throw new Error("Ungültige User-ID");
 
-    const update = {
-      $set: {
-        email: email.trim(),
-        roles: cleanRoles,
-        mustChangePassword: !!mustChangePassword,
-        updatedAt: now,
-        ...passwordUpdate
+    await col.updateOne(
+      { _id },
+      {
+        $set: {
+          email: String(email).trim().toLowerCase(),
+          roles: cleanRoles,
+          mustChangePassword: !!mustChangePassword,
+          updatedAt: now,
+          ...passwordUpdate
+        }
       }
-    };
-
-    await col.updateOne({ _id }, update);
+    );
     return _id;
-  } else {
-    if (!passwordUpdate.passwordHash) {
-      throw new Error(
-        "Für neue Benutzer ist ein Passwort erforderlich (wird gehasht gespeichert)."
-      );
-    }
-
-    const doc = {
-      email: email.trim(),
-      roles: cleanRoles,
-      mustChangePassword: !!mustChangePassword,
-      createdAt: now,
-      ...passwordUpdate
-    };
-
-    const res = await col.insertOne(doc);
-    return res.insertedId;
   }
+
+  if (!passwordUpdate.passwordHash) {
+    throw new Error("Für neue Benutzer ist ein Passwort erforderlich (wird gehasht gespeichert).");
+  }
+
+  const doc = {
+    email: String(email).trim().toLowerCase(),
+    roles: cleanRoles,
+    mustChangePassword: !!mustChangePassword,
+    createdAt: now,
+    ...passwordUpdate,
+
+    // MVP: mehrere Gruppenrollen möglich
+    groupRoles: []
+  };
+
+  const res = await col.insertOne(doc);
+  return res.insertedId;
 }
 
 // -----------------------------------------
 // Public API – Wrapper für aktuelle Routes
 // -----------------------------------------
-
-// Wird von server/core/users/routes.js erwartet
 export async function getUsersForTenant(tenantId) {
-  // einfach Alias auf deine bestehende Funktion
   return listUsers(tenantId);
 }
 
-// Wird von server/core/users/routes.js erwartet
 export async function createUserForTenant(
   tenantId,
   { email, password, roles, mustChangePassword = false }
 ) {
-  if (!email) {
-    throw new Error("email ist erforderlich");
-  }
+  if (!email) throw new Error("email ist erforderlich");
 
-  // Passwort: entweder übergeben oder automatisch erzeugen (MVP-Style)
-  let finalPassword = (password && password.trim()) || generateSimplePassword();
-
+  const finalPassword = (password && String(password).trim()) || generateSimplePassword();
   const id = await upsertUser(tenantId, {
     email,
     password: finalPassword,
@@ -154,20 +161,80 @@ export async function createUserForTenant(
     mustChangePassword
   });
 
-  // Rückgabe inkl. Klartext-Passwort, falls du es im UI anzeigen willst
-  const normalizedRoles = Array.isArray(roles)
-    ? roles
-    : roles
-    ? roles
-        .split(",")
-        .map(r => r.trim())
-        .filter(Boolean)
-    : [];
-
   return {
     id,
-    email: email.trim(),
-    roles: normalizedRoles,
+    email: String(email).trim().toLowerCase(),
+    roles: normalizeRoles(roles),
     password: finalPassword
   };
+}
+
+// -----------------------------------------
+// Groups (für Dropdown in Users UI)
+// -----------------------------------------
+export async function listGroupsForTenant(tenantId) {
+  const col = await getGroupsCollection(tenantId);
+  return col
+    .find({ tenantId }, { projection: { name: 1, description: 1, createdAt: 1 } })
+    .sort({ name: 1 })
+    .toArray();
+}
+
+// -----------------------------------------
+// GroupRoles am User (additiv!)
+// -----------------------------------------
+
+/**
+ * Additiv hinzufügen:
+ * - fügt (groupId, roleKey) hinzu, wenn nicht vorhanden
+ * - überschreibt NICHT andere Rollen
+ */
+export async function addGroupRoleToUser(tenantId, userId, { groupId, roleKey }) {
+  const col = await getUsersCollection(tenantId);
+  const _id = toObjectId(userId);
+  if (!_id) throw new Error("Ungültige User-ID");
+
+  const normalized = normalizeGroupRoleInput({ groupId, roleKey });
+  if (!normalized) throw new Error("groupId/roleKey ungültig");
+
+  const now = new Date();
+  const user = await col.findOne({ _id }, { projection: { groupRoles: 1 } });
+
+  const current = Array.isArray(user?.groupRoles) ? user.groupRoles : [];
+  const exists = current.some(gr => sameOid(gr.groupId, normalized.groupId) && String(gr.role) === normalized.role);
+
+  if (exists) {
+    // trotzdem updatedAt setzen
+    await col.updateOne({ _id }, { $set: { updatedAt: now } });
+    return;
+  }
+
+  await col.updateOne(
+    { _id },
+    {
+      $push: { groupRoles: { groupId: normalized.groupId, role: normalized.role } },
+      $set: { updatedAt: now }
+    }
+  );
+}
+
+/**
+ * Entfernen einer konkreten Zuordnung (groupId + roleKey)
+ */
+export async function removeGroupRoleFromUser(tenantId, userId, { groupId, roleKey }) {
+  const col = await getUsersCollection(tenantId);
+  const _id = toObjectId(userId);
+  if (!_id) throw new Error("Ungültige User-ID");
+
+  const normalized = normalizeGroupRoleInput({ groupId, roleKey });
+  if (!normalized) throw new Error("groupId/roleKey ungültig");
+
+  const now = new Date();
+  await col.updateOne(
+    { _id },
+    {
+      $pull: { groupRoles: { groupId: normalized.groupId, role: normalized.role } },
+      $set: { updatedAt: now }
+    }
+  );
 }

@@ -1,6 +1,5 @@
 // server/core/form_assignments/service.js
 // Form -> Groups Assignments (Core)
-// Wenn ein Form Assignments hat (>0), dann gilt: nur diese Groups dürfen das Form nutzen.
 
 import { ObjectId } from "mongodb";
 import { getFormAssignmentsCollection, getMdxFormsCollection } from "./model.js";
@@ -50,11 +49,8 @@ export async function setFormAssignments(tenantId, { appId = "mdx", formSlug, gr
   const col = await getFormAssignmentsCollection(tenantId);
 
   const normalized = Array.isArray(groupIds) ? groupIds : [groupIds];
-  const oids = normalized
-    .map(toObjectIdSafe)
-    .filter(Boolean);
+  const oids = normalized.map(toObjectIdSafe).filter(Boolean);
 
-  // Strategie: replace-all
   await col.deleteMany({ tenantId, appId, formSlug: String(formSlug) });
 
   const now = new Date();
@@ -75,8 +71,8 @@ export async function setFormAssignments(tenantId, { appId = "mdx", formSlug, gr
 
 /**
  * Helper für Guards:
- * - Wenn es KEINE Assignments gibt, gilt "offen" (nicht blockieren).
- * - Wenn es Assignments gibt, muss User in mind. 1 dieser Groups sein.
+ * - Wenn KEINE Assignments => offen
+ * - Wenn Assignments => User muss in mind. 1 Group sein
  */
 export async function isUserAllowedByAssignments(tenantId, user, { appId = "mdx", formSlug } = {}) {
   if (!tenantId || !user || !formSlug) return false;
@@ -86,14 +82,19 @@ export async function isUserAllowedByAssignments(tenantId, user, { appId = "mdx"
   // Keine Assignments => offen
   if (!assigned || assigned.length === 0) return true;
 
-  const userGroups =
-    (Array.isArray(user.groupIds) ? user.groupIds :
+  const fromGroupIds =
+    Array.isArray(user.groupIds) ? user.groupIds :
     Array.isArray(user.groups) ? user.groups :
     Array.isArray(user.group_ids) ? user.group_ids :
-    []);
+    [];
 
-  if (!userGroups || userGroups.length === 0) return false;
+  // ✅ NEU: groupRoles => groupIds ableiten
+  const fromGroupRoles = Array.isArray(user.groupRoles)
+    ? user.groupRoles.map(gr => gr?.groupId).filter(Boolean)
+    : [];
 
-  const userGroupStrings = userGroups.map(String);
-  return assigned.some(a => userGroupStrings.includes(String(a)));
+  const userGroups = [...fromGroupIds, ...fromGroupRoles].map(String).filter(Boolean);
+  if (userGroups.length === 0) return false;
+
+  return assigned.some(a => userGroups.includes(String(a)));
 }

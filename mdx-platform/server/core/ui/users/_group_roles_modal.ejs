@@ -1,0 +1,97 @@
+<%
+  const u = userToEdit;
+  const grs = Array.isArray(u?.groupRoles) ? u.groupRoles : [];
+%>
+
+<div class="fixed inset-0 z-50">
+  <!-- Backdrop -->
+  <div class="absolute inset-0 bg-black/40" onclick="closeModal()"></div>
+
+  <!-- Panel -->
+  <div class="absolute inset-0 flex items-start justify-center p-4">
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+      <div class="flex items-center justify-between px-5 py-4 border-b">
+        <div>
+          <div class="text-sm text-gray-500">Gruppenrollen bearbeiten</div>
+          <div class="font-semibold font-mono"><%= u.email %></div>
+        </div>
+        <button class="text-sm px-3 py-1.5 rounded-md border hover:bg-gray-50" onclick="closeModal()">
+          Schließen
+        </button>
+      </div>
+
+      <div class="p-5 space-y-4">
+        <!-- Existing -->
+        <div>
+          <div class="text-sm font-semibold mb-2">Aktuelle Zuordnungen</div>
+
+          <% if (grs.length === 0) { %>
+            <div class="text-sm text-gray-400 italic">keine</div>
+          <% } else { %>
+            <div class="flex flex-col gap-2">
+              <% grs.forEach(gr => { %>
+                <% const g = (groups || []).find(x => String(x._id) === String(gr.groupId)); %>
+                <div class="flex items-center justify-between border rounded-lg px-3 py-2 bg-gray-50">
+                  <div class="text-xs">
+                    <div class="font-semibold"><%= g ? g.name : String(gr.groupId) %></div>
+                    <div class="text-gray-600"><%= gr.role %></div>
+                  </div>
+
+                  <form
+                    hx-post="/tenant/<%= tenantId %>/users/<%= String(u._id) %>/group-roles/remove"
+                    hx-target="#modal-root"
+                    hx-swap="innerHTML"
+                    class="m-0"
+                  >
+                    <input type="hidden" name="groupId" value="<%= String(gr.groupId) %>"/>
+                    <input type="hidden" name="roleKey" value="<%= String(gr.role) %>"/>
+                    <button type="submit" class="text-xs px-3 py-1 rounded-md border hover:bg-white">
+                      Entfernen
+                    </button>
+                  </form>
+                </div>
+              <% }) %>
+            </div>
+          <% } %>
+        </div>
+
+        <!-- Add -->
+        <div class="border-t pt-4">
+          <div class="text-sm font-semibold mb-2">Neue Zuordnung hinzufügen</div>
+
+          <form
+            hx-post="/tenant/<%= tenantId %>/users/<%= String(u._id) %>/group-roles/add"
+            hx-target="#modal-root"
+            hx-swap="innerHTML"
+            class="flex flex-col md:flex-row md:items-center gap-2"
+          >
+            <div class="text-xs text-gray-600">Gruppe</div>
+            <select name="groupId" class="border rounded-md px-2 py-2 text-sm flex-1">
+              <option value="">Bitte wählen…</option>
+              <% (groups || []).forEach(g => { %>
+                <option value="<%= String(g._id) %>"><%= g.name %></option>
+              <% }) %>
+            </select>
+
+            <div class="text-xs text-gray-600">Rolle</div>
+            <select name="roleKey" class="border rounded-md px-2 py-2 text-sm">
+              <option value="">Bitte wählen…</option>
+              <% (roleOptions || []).forEach(rk => { %>
+                <option value="<%= rk %>"><%= rk %></option>
+              <% }) %>
+            </select>
+
+            <button type="submit" class="inline-flex items-center justify-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700">
+              Speichern
+            </button>
+          </form>
+
+          <div class="mt-2 text-[11px] text-gray-500">
+            Hinweis: Wenn du Session-Refresh aktivierst, muss sich der User nach Änderungen nicht neu einloggen.
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

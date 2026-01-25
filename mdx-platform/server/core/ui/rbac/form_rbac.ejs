@@ -134,7 +134,9 @@
               <div class="flex items-center justify-between border rounded-lg p-3">
                 <div class="text-sm">
                   <div class="text-gray-900">
-                    GroupId: <span class="font-mono"><%= String(b.subjectId) %></span>
+                    Group:
+                    <span class="font-semibold"><%= b.groupName || "Unbekannt" %></span>
+                    <span class="text-xs text-gray-500 font-mono">(<%= String(b.subjectId) %>)</span>
                   </div>
                   <div class="text-gray-600">
                     Role: <span class="font-mono"><%= b.roleKey %></span>
@@ -148,7 +150,9 @@
               </div>
             <% }) %>
           </div>
-          <p class="text-xs text-gray-500 mt-2">UI zeigt MVP-mäßig GroupId; Label-Mapping können wir als nächstes ergänzen.</p>
+          <p class="text-xs text-gray-500 mt-2">
+            Mehrfach-Bindings sind erlaubt: dieselbe Gruppe kann mehrere Rollen für ein Formular bekommen.
+          </p>
         <% } %>
       </div>
     </section>

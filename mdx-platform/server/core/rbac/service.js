@@ -7,6 +7,7 @@ import { getTenantDb } from "../db/mongo.js";
 
 export const FORM_ROLES_COLLECTION = "core_form_roles";
 export const ROLE_BINDINGS_COLLECTION = "core_role_bindings";
+export const GROUPS_COLLECTION = "core_groups";
 
 // ------------------------------------------------------------
 // Defaults (MVP): werden einmalig pro Form angelegt, falls leer
@@ -57,6 +58,11 @@ async function getRoleBindingsCol(tenantId) {
   return db.collection(ROLE_BINDINGS_COLLECTION);
 }
 
+async function getGroupsCol(tenantId) {
+  const db = await getTenantDb(tenantId);
+  return db.collection(GROUPS_COLLECTION);
+}
+
 function isTenantAdmin(user) {
   const roles = user?.roles || [];
   if (!Array.isArray(roles)) return false;
@@ -77,6 +83,41 @@ function normalizeStringArray(v) {
   if (!v) return [];
   if (Array.isArray(v)) return v.map(x => String(x).trim()).filter(Boolean);
   return String(v).split(",").map(x => x.trim()).filter(Boolean);
+}
+
+function uniqueStrings(arr) {
+  const s = new Set((arr || []).map(x => String(x)).filter(Boolean));
+  return Array.from(s);
+}
+
+/**
+ * Extrahiert Gruppen-IDs robust:
+ * - bevorzugt user.groupIds / user.groups / user.group_ids
+ * - ergänzt mit IDs aus user.groupRoles[*].groupId
+ */
+function getUserGroupIds(user) {
+  const direct =
+    (Array.isArray(user.groupIds) ? user.groupIds :
+    Array.isArray(user.groups) ? user.groups :
+    Array.isArray(user.group_ids) ? user.group_ids :
+    []);
+
+  const fromGroupRoles = Array.isArray(user.groupRoles)
+    ? user.groupRoles.map(gr => gr?.groupId).filter(Boolean)
+    : [];
+
+  return uniqueStrings([...direct, ...fromGroupRoles]);
+}
+
+/**
+ * Extrahiert roleKeys aus user.groupRoles (MVP-Fallback)
+ */
+function getUserRoleKeysFromGroupRoles(user) {
+  if (!Array.isArray(user.groupRoles)) return [];
+  const keys = user.groupRoles
+    .map(gr => String(gr?.role || "").trim())
+    .filter(Boolean);
+  return uniqueStrings(keys);
 }
 
 // ------------------------------------------------------------
@@ -154,14 +195,42 @@ export async function deleteFormRole(tenantId, formSlug, roleKey) {
   await bindingsCol.deleteMany({ tenantId, formSlug, roleKey: String(roleKey) });
 }
 
+/**
+ * ✅ listRoleBindings – jetzt mit groupName (UI)
+ */
 export async function listRoleBindings(tenantId, formSlug) {
   const col = await getRoleBindingsCol(tenantId);
-  return col
+  const groupsCol = await getGroupsCol(tenantId);
+
+  const bindings = await col
     .find({ tenantId, formSlug })
     .sort({ createdAt: -1 })
     .toArray();
+
+  if (!bindings || bindings.length === 0) return [];
+
+  // groupId -> name map
+  const groupIds = uniqueStrings(bindings.map(b => String(b.subjectId)).filter(Boolean))
+    .map(toObjectIdSafe)
+    .filter(Boolean);
+
+  const groups = groupIds.length > 0
+    ? await groupsCol.find({ _id: { $in: groupIds } }, { projection: { name: 1 } }).toArray()
+    : [];
+
+  const nameById = new Map(groups.map(g => [String(g._id), g.name]));
+
+  return bindings.map(b => ({
+    ...b,
+    groupName: nameById.get(String(b.subjectId)) || null
+  }));
 }
 
+/**
+ * ✅ FIX: Multi-Bindings erlauben
+ * vorher: upsert auf (groupId + formSlug) -> überschreibt alte Rolle
+ * jetzt: upsert auf (groupId + formSlug + roleKey) -> mehrere Rollen möglich
+ */
 export async function bindGroupToRole(tenantId, formSlug, { groupId, roleKey } = {}) {
   if (!tenantId) throw new Error("tenantId fehlt");
   if (!formSlug) throw new Error("formSlug fehlt");
@@ -174,16 +243,18 @@ export async function bindGroupToRole(tenantId, formSlug, { groupId, roleKey } =
   if (!subjectId) throw new Error("groupId ist keine gültige ObjectId");
 
   const now = new Date();
+  const rk = String(roleKey).trim();
 
   await col.updateOne(
-    { tenantId, formSlug, subjectType: "group", subjectId },
+    // ✅ roleKey gehört in den Filter
+    { tenantId, formSlug, subjectType: "group", subjectId, roleKey: rk },
     {
       $set: {
         tenantId,
         formSlug,
         subjectType: "group",
         subjectId,
-        roleKey: String(roleKey),
+        roleKey: rk,
         updatedAt: now
       },
       $setOnInsert: { createdAt: now }
@@ -212,38 +283,38 @@ export async function canUserPerformFormAction(tenantId, user, formSlug, action)
   // Dev/Bootstrap: Tenant-Admins dürfen alles (damit du bauen kannst)
   if (isTenantAdmin(user)) return true;
 
-  // Gruppenzugehörigkeit: wir akzeptieren mehrere mögliche Felder,
-  // weil User-Groups/Memberships als Feature später kommen können.
-  const groupIds =
-    (Array.isArray(user.groupIds) ? user.groupIds :
-    Array.isArray(user.groups) ? user.groups :
-    Array.isArray(user.group_ids) ? user.group_ids :
-    []);
+  // 1) Gruppen-IDs robust ermitteln (inkl. aus groupRoles abgeleitet)
+  const groupIds = getUserGroupIds(user);
+  const groupObjectIds = groupIds.map(toObjectIdSafe).filter(Boolean);
 
-  if (!groupIds || groupIds.length === 0) return false;
+  // 2) sauber: core_role_bindings (Group -> Role)
+  let roleKeys = [];
 
-  const groupObjectIds = groupIds
-    .map(toObjectIdSafe)
-    .filter(Boolean);
+  if (groupObjectIds.length > 0) {
+    const bindingsCol = await getRoleBindingsCol(tenantId);
 
-  if (groupObjectIds.length === 0) return false;
+    const bindings = await bindingsCol
+      .find({
+        tenantId,
+        formSlug,
+        subjectType: "group",
+        subjectId: { $in: groupObjectIds }
+      })
+      .toArray();
 
-  const bindingsCol = await getRoleBindingsCol(tenantId);
-  const rolesCol = await getFormRolesCol(tenantId);
+    if (bindings && bindings.length > 0) {
+      roleKeys = uniqueStrings(bindings.map(b => b.roleKey).filter(Boolean));
+    }
+  }
 
-  const bindings = await bindingsCol
-    .find({
-      tenantId,
-      formSlug,
-      subjectType: "group",
-      subjectId: { $in: groupObjectIds }
-    })
-    .toArray();
+  // 3) MVP-Fallback: wenn keine Bindings existieren, nutze user.groupRoles direkt
+  if (roleKeys.length === 0) {
+    roleKeys = getUserRoleKeysFromGroupRoles(user);
+  }
 
-  if (!bindings || bindings.length === 0) return false;
-
-  const roleKeys = [...new Set(bindings.map(b => b.roleKey).filter(Boolean))];
   if (roleKeys.length === 0) return false;
+
+  const rolesCol = await getFormRolesCol(tenantId);
 
   const roles = await rolesCol
     .find({ tenantId, formSlug, roleKey: { $in: roleKeys } })
@@ -257,4 +328,23 @@ export async function canUserPerformFormAction(tenantId, user, formSlug, action)
     if (allowed.includes("*")) return true;
     return allowed.includes(String(action));
   });
+}
+
+// ------------------------------------------------------------
+// Optional: Indexes (für später / GitHub Zwischenstand)
+// ------------------------------------------------------------
+export async function ensureRbacIndexes(tenantId) {
+  const rolesCol = await getFormRolesCol(tenantId);
+  const bindingsCol = await getRoleBindingsCol(tenantId);
+
+  // Rollen: pro Form + roleKey eindeutig
+  await rolesCol.createIndex({ tenantId: 1, formSlug: 1, roleKey: 1 }, { unique: true });
+
+  // Bindings: pro Form + group + roleKey eindeutig (Multi-Roles möglich)
+  await bindingsCol.createIndex(
+    { tenantId: 1, formSlug: 1, subjectType: 1, subjectId: 1, roleKey: 1 },
+    { unique: true }
+  );
+
+  await bindingsCol.createIndex({ tenantId: 1, formSlug: 1, createdAt: -1 });
 }
